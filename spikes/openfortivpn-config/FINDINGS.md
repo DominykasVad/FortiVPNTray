@@ -142,7 +142,7 @@ Already in PLAN.md and confirmed:
 - Set `set-dns = 0` and `pppd-use-peerdns = 0` explicitly; the default for `set-dns` is 1.
 - Redact logs in the helper before anything is buffered (2.4).
 
-New, for the owner to decide (also listed under PLAN.md "Open questions"):
+New, put to the owner as open questions when this was written (decided since; see the end):
 
 1. **Password on stdin instead of in the config file.** PLAN.md 2.3 does not say
    where the password goes. A pipe to the child's stdin keeps it off the disk and
@@ -157,3 +157,13 @@ New, for the owner to decide (also listed under PLAN.md "Open questions"):
    version, the security-relevant ones first, and treat the file being unreadable as
    the helper's error, because openfortivpn will not.
 4. **Redaction tests** for the two `-v` lines quoted in section 3.
+
+### Decided (2026-10-13, PLAN.md decision log)
+
+- Password authentication is dropped; SAML is the only auth method. Item 1 no longer
+  applies, and no password reaches the helper or the child at all.
+- Item 2 is accepted: everything goes in the per-session config file. The only
+  options this project needs without a config key would be extra flags, and there are
+  none: `set-dns`, `pppd-use-peerdns` and `saml-login` all have keys, so the child's
+  argv is exactly `openfortivpn -c <file> -v`.
+- Items 3 and 4 are now part of PLAN.md 2.3 and 2.4.

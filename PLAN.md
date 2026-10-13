@@ -205,16 +205,26 @@ pendingSAMLURL() -> URL?            // helper parsed it; app opens the browser
 ```
 `ConnectRequest`: `host` (hostname/IPv4, no leading `-`/`.`), `port` (1–65535),
 `realm?` (`[A-Za-z0-9._-]{1,64}`), `auth` = `.saml(listenPort ≥1024, default 8020)`
-| `.password(username, password)` (printable, no control chars, ≤256),
+(SAML is the only auth method; there is no password case),
 `trustedCerts` (`^[0-9a-f]{64}$`, ≤16), `dnsFallback: [IPv4]` (≤4, only used if
 the tunnel provides no DNS). Reject anything else; one session at a time.
 
-### 2.3 Spawning (F2, F3, F4, F9)
+### 2.3 Spawning (F2, F3, F4)
 - Config file per session in `/Library/Application Support/<label>/run/`
   (`root:wheel 0700`), file `0600`, created `O_CREAT|O_EXCL|O_NOFOLLOW`; values
   that contain `\n`, `\r`, `\0` or `=` rejected, never escaped.
-- Always `-c <that file>` (exact behaviour per S3). Helper-chosen flags only:
-  `--set-dns=0 --pppd-use-peerdns=0 -v` (+ `--saml-login` per auth). Nothing else.
+- Child argv is fixed: `openfortivpn -c <that file> -v`, plus only helper-chosen
+  fixed flags that have no config key. Per S3 there are none today: `set-dns`,
+  `pppd-use-peerdns` and `saml-login` all have keys, so the argv is exactly those
+  three arguments. No positional `host:port`. Exactly one `-v` (S3: `-vv` and
+  above log HTTP bodies and worse).
+- The config writer emits, in this order: `set-dns = 0`, `pppd-use-peerdns = 0`,
+  `host`, `port`, `saml-login = <listen port>`, `realm` (if set), one
+  `trusted-cert` line per pin. `-c` fully replaces the default config (S3), so
+  nothing else is read. An unknown key silently drops the rest of the file (S3),
+  so the writer only emits keys known to the pinned openfortivpn version, and a
+  test parses the written file back and checks every key arrived. A config file
+  the child cannot open is the helper's error; openfortivpn only warns.
 - Binary per S2 at `/Library/PrivilegedHelperTools/<label>.d/openfortivpn`
   (the root-owned copy — never the Homebrew path).
   Before each spawn: file + every parent dir root-owned, not group/other
@@ -227,8 +237,11 @@ the tunnel provides no DNS). Reject anything else; one session at a time.
   on any exit.
 
 ### 2.4 Logs (F5)
-Helper keeps an in-memory ring buffer per session (redacted with `LogParser.redacted`
-+ password string removal), served via `readLog`. Optional on-disk copy only in
+Helper keeps an in-memory ring buffer per session (redacted with `LogParser.redacted`),
+served via `readLog`. Redaction must cover the two secrets `-v` prints (S3): the
+session cookie (`Cookie: SVPNCOOKIE=…`, the whole rest of the line) and the SAML
+session id (`Using SAML authentication URL /remote/saml/auth_id?id=…`). A test
+uses the exact log formats from `spikes/openfortivpn-config/FINDINGS.md`. Optional on-disk copy only in
 the root-owned dir, file `0600`. No `/tmp` anywhere.
 
 ### 2.5 DNS, routes, cleanup (F6, F7, F8)
@@ -274,7 +287,8 @@ it. Version check compares **protocol** version.
   Keep the existing explicit cert-pin confirmation flow driven by `.certificate` events
   (events now come from the helper's parsed output).
 - SAML: app polls `pendingSAMLURL()` and opens it (existing behaviour).
-- Password: read from Keychain right before `connect`, sent once, not retained.
+- Password authentication is removed from the app (3.0, F9): SAML is the only
+  auth method, so nothing is read from or stored in Keychain.
 - Settings: helper status shows caller-check mode; README updated
   (Homebrew openfortivpn required at install/update time only; signing doc).
 - openfortivpn update check (app side, as the user, never root): compare the
@@ -287,7 +301,8 @@ it. Version check compares **protocol** version.
 - Interface byte counters can stay app-side (unprivileged `getifaddrs`).
 
 ### Tasks — phase 3
-- [ ] **3.1** `VPNEngine` as client of the new API; SAML URL polling; password sent once.
+- [ ] **3.0** Remove password authentication from the app (F9): `AuthType` and its editor radio, username field, Keychain password storage and access, related tests. No migration: there are no existing profiles or saved passwords to carry over. Docs updated in 3.3.
+- [ ] **3.1** `VPNEngine` as client of the new API; SAML URL polling.
 - [ ] **3.2** Delete `GatewayCertificate` / `ignoreCertErrors` (decode-and-drop); cert-pin flow from helper events.
 - [ ] **3.3** Settings shows caller-check mode; README + native/README updated.
 - [ ] **3.4** openfortivpn update check + Update action (runs through the admin-prompt install path, like Repair — **not** a new helper API call: a same-user caller must not be able to trigger a re-copy).
@@ -299,7 +314,7 @@ it. Version check compares **protocol** version.
 ## Phase 4 — Tests and attack checklist
 
 Unit: validators (leading `-`, `=`, whitespace, newline, unicode, overlong),
-config writer rejection cases, argv builder exact output for SAML/password,
+config writer rejection cases, argv builder exact output (SAML-only, fixed argv),
 `LogParser` with real log samples (move existing `CoreTests` cases accordingly).
 
 Manual, maintainer on the Mac (report pass/fail):
@@ -309,16 +324,15 @@ Manual, maintainer on the Mac (report pass/fail):
 4. Ad-hoc-signed copy of the app (or a test client) is rejected (S1 pass mode only).
 5. Hostile same-user client: `connect` with host `-c/tmp/x`, realm with newline → rejected.
 6. `pppd-plugin = /tmp/x.so` in `/opt/homebrew/etc/openfortivpn/config` → not loaded.
-7. `ps aux` during password-auth connect → no password.
-8. `otool -L` on installed openfortivpn and its dylibs → only system libs or root-owned rewritten paths.
-8a. Replace `/opt/homebrew/bin/openfortivpn` with a script → connect still uses the root copy; app offers Update showing a mismatch.
-8b. Upgrade only the OpenSSL formula openfortivpn links (currently `openssl@4`, found via `otool -L`) → app detects the change.
-9. Built-in L2TP/other pppd untouched by disconnect.
-10. Rebuild + reinstall app with same identity → helper still accepts it.
+7. `otool -L` on installed openfortivpn and its dylibs → only system libs or root-owned rewritten paths.
+7a. Replace `/opt/homebrew/bin/openfortivpn` with a script → connect still uses the root copy; app offers Update showing a mismatch.
+7b. Upgrade only the OpenSSL formula openfortivpn links (currently `openssl@4`, found via `otool -L`) → app detects the change.
+8. Built-in L2TP/other pppd untouched by disconnect.
+9. Rebuild + reinstall app with same identity → helper still accepts it.
 
 ### Tasks — phase 4
 - [ ] **4.1** Unit tests listed above.
-- [ ] **4.2** *(maintainer)* Manual checklist 1–10, results recorded here.
+- [ ] **4.2** *(maintainer)* Manual checklist 1–9, results recorded here.
 
 **Review checkpoint 4.**
 
@@ -338,10 +352,12 @@ supersede it with a new one that names the old.
 - 2026-10-13 · 1.1 · S1 passed: XPC Mach service with `setCodeSigningRequirement` (identifier + certificate leaf hash) plus UID check; UID-only fallback not needed · self-signed identity accepted, ad-hoc and wrong identifier rejected, rebuild with same identity still accepted.
 - 2026-10-13 · 1.2 · S2 passed: root-owned copy of Homebrew openfortivpn + OpenSSL dylibs, paths rewritten, re-signed, manifest with installed and shipped hashes · real SAML connect through the copy worked.
 - 2026-10-13 · 1.2 · Child OpenSSL pinned via OPENSSL_CONF=/dev/null, OPENSSL_MODULES=<root dir>, SSL_CERT_FILE=/etc/ssl/cert.pem; no static build · Homebrew OpenSSL's compiled-in openssldir is user-writable and openssl.cnf can load code as root.
+- 2026-10-13 · 1.3 · Password authentication dropped; SAML is the only auth method · the gateway uses SAML/Entra; removes Keychain handling, password transport to root and F9 entirely.
+- 2026-10-13 · 1.3 · Child argv is fixed (`-c <file> -v` + helper-chosen flags without a config key); host, port, realm, trusted certs etc. only in the validated config file · nothing caller-derived reaches argv; S3 showed -c fully replaces the default config.
 
 ## Open questions
 
-- 1.3 / 2.3 · From S3 (`spikes/openfortivpn-config/FINDINGS.md`, "What this means for phase 2"): (a) pass the password on the child's stdin instead of writing it to the config file? (b) put host, port and every option in the config file so the child's argv is always `openfortivpn -c <file> -v`? Both are supported by openfortivpn 1.24.1; 2.3 currently lists command-line flags and does not say where the password goes. Needs the owner's decision before 2.3.
+- (none)
 
 ## Later / optional
 - Auto-reconnect after wake, connect on launch.
