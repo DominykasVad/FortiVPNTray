@@ -73,7 +73,7 @@ If the selected Xcode installation is unavailable, select an installed Command L
 DEVELOPER_DIR=/Library/Developer/CommandLineTools native/scripts/build.sh
 ```
 
-The [native CI workflow](.github/workflows/native.yml) tests and builds the Apple Silicon app and uploads its ZIP as a workflow artifact. Version tags publish the tested ZIP and SHA256 checksums to GitHub Releases. There is no Homebrew cask.
+The [native CI workflow](.github/workflows/native.yml) tests and builds the Apple Silicon app; a [second workflow](.github/workflows/pr.yml) runs general checks on pull requests. CI publishes nothing: no artifacts, no GitHub Releases. There is no Homebrew cask.
 
 ## First connection
 

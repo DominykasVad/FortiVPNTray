@@ -9,3 +9,4 @@ docs/specs/
 # Local build artifacts.
 /src-tauri/
 scratch/
+__pycache__/
