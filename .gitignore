@@ -8,3 +8,4 @@ docs/plans/
 docs/specs/
 # Local build artifacts.
 /src-tauri/
+scratch/
