@@ -88,7 +88,7 @@ Agent:
 2. `build.sh`: signing identity from env `FVT_SIGN_IDENTITY` (+ optional
    `FVT_SIGN_KEYCHAIN`); unset → ad-hoc, and the build prints a loud warning that
    the helper will run in UID-only mode (see S1 fallback).
-3. CI: keep as is (ad-hoc build + tests). CI builds are for testing, not daily use.
+3. CI: cleaned up in task 0.5 (tests + build only, no releases, general PR checks, actions pinned to SHAs). CI builds are for testing, not daily use.
 4. Remove `extraArgs` (F11): model field, editor UI, `Validation.extraArguments`.
    Decode-and-drop on load for old profiles.
 
@@ -98,6 +98,7 @@ Agent:
 - [x] **0.2** `build.sh` signing via `FVT_SIGN_IDENTITY` / `FVT_SIGN_KEYCHAIN`, ad-hoc warning; after signing, print the leaf SHA-1 read from the built app (`codesign -d --extract-certificates` + hash, or equivalent) so it can be compared with the identity; `docs/signing.md` (agent item 2).
 - [ ] **0.3** Remove `extraArgs`, decode-and-drop old profiles, tests (agent item 4).
 - [ ] **0.4** Move the package to Swift 6: `swift-tools-version: 6.0`, Swift 6 language mode for all targets. Fix strict-concurrency errors without `@unchecked Sendable` / `nonisolated(unsafe)` unless each use has a comment saying why. No behaviour change; tests stay green.
+- [ ] **0.5** CI: remove the release job, release-version check and artifact upload; keep tests + build + `codesign --verify`; add a general PR workflow (actionlint, file hygiene: valid YAML/JSON/plist, no merge-conflict markers, final newline, no trailing whitespace; >5 MiB guard; gitleaks on the PR commits; Markdown link check); pin all actions to commit SHAs; keep `permissions: contents: read`.
 
 **Review checkpoint 0.**
 
@@ -321,6 +322,7 @@ supersede it with a new one that names the old.
 - 2026-10-13 · — · openfortivpn is never bundled in the app or its release zip; a separate installer (from S2's build) puts it in the root-owned dir · keeps the MIT app free of GPLv3 distribution obligations.
 - 2026-10-13 · — · Supersedes the previous line: no separate installer. The helper installer copies Homebrew's openfortivpn + dylibs into the root-owned dir on admin approval; the app detects Homebrew changes by set hash and offers Update; never bundled · root must not run user-writable files (F3), copying locally is not distribution, user decides on every update.
 - 2026-10-13 · 0.4 · Whole package on Swift 6 language mode before phase 2 · the new root helper is written in strict concurrency from the start instead of migrated later.
+- 2026-10-13 · 0.5 · No GitHub Releases from CI; CI only tests and builds · CI builds are ad-hoc signed and would run the helper in UID-only mode, and the fork is not distributed.
 
 ## Open questions
 
