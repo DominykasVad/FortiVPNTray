@@ -22,12 +22,11 @@ public struct VPNProfile: Codable, Identifiable, Equatable {
     public var realm: String? = nil
     public var trustedCerts: [String] = []
     public var ignoreCertErrors = false
-    public var extraArgs: [String] = []
     public init() {}
     enum CodingKeys: String, CodingKey {
         case id, name, host, port, username, realm
         case authType = "auth_type", trustedCerts = "trusted_certs"
-        case ignoreCertErrors = "ignore_cert_errors", extraArgs = "extra_args"
+        case ignoreCertErrors = "ignore_cert_errors"
     }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -40,7 +39,6 @@ public struct VPNProfile: Codable, Identifiable, Equatable {
         realm = try c.decodeIfPresent(String.self, forKey: .realm)
         trustedCerts = try c.decodeIfPresent([String].self, forKey: .trustedCerts) ?? []
         ignoreCertErrors = try c.decodeIfPresent(Bool.self, forKey: .ignoreCertErrors) ?? false
-        extraArgs = try c.decodeIfPresent([String].self, forKey: .extraArgs) ?? []
     }
     public func validated() throws -> VPNProfile {
         var result = self
@@ -52,7 +50,6 @@ public struct VPNProfile: Codable, Identifiable, Equatable {
         guard !id.isEmpty, trustedCerts.allSatisfy(Validation.digest) else {
             throw VPNError("Each trusted certificate must be a 64-character SHA256 fingerprint.")
         }
-        try Validation.extraArguments(extraArgs)
         return result
     }
     public func arguments(password: String?) throws -> [String] {
@@ -68,7 +65,7 @@ public struct VPNProfile: Codable, Identifiable, Equatable {
         args += trustedCerts.map { "--trusted-cert=\($0)" }
         if let realm, !realm.isEmpty { args += ["--realm=\(realm)"] }
         args += ["--set-dns=0", "--pppd-use-peerdns=0", "-v"]
-        return args + extraArgs
+        return args
     }
 }
 
@@ -82,17 +79,6 @@ public enum Validation {
         return parts.count == 4 && parts.allSatisfy { !$0.isEmpty && $0.allSatisfy(\.isNumber) && UInt8($0) != nil }
     }
     public static func digest(_ text: String) -> Bool { text.count == 64 && text.utf8.allSatisfy { (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0) } }
-    public static func extraArguments(_ args: [String]) throws {
-        // Keep the native client in control of credentials, configuration and DNS.
-        // Match the helper's execution restrictions and reject overrides of managed flags.
-        let blocked = ["--plugin", "--pppd-plugin", "--pppd-ifname", "--pppd-call", "--config", "--password", "--username", "--cookie", "--saml-login", "--set-dns", "--pppd-use-peerdns", "--log", "--trusted-cert", "--realm"]
-        for arg in args {
-            let lower = arg.lowercased()
-            if arg.isEmpty || arg.contains("\n") || arg.contains("\0") || blocked.contains(where: lower.hasPrefix) || ["-c", "-p", "-u"].contains(where: lower.hasPrefix) {
-                throw VPNError("This extra argument is managed by the app or unsupported: \(arg)")
-            }
-        }
-    }
 }
 
 public struct AppSettings: Codable, Equatable {

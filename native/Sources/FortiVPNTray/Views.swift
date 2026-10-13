@@ -290,7 +290,6 @@ struct ProfileEditor: View {
     @State private var password = ""
     @State private var portText = ""
     @State private var certificates = ""
-    @State private var extraArguments = ""
     @State private var error: String?
     @State private var confirmDelete = false
     private var isNew: Bool { !model.profiles.contains { $0.id == profile.id } }
@@ -334,11 +333,6 @@ struct ProfileEditor: View {
                         TextEditor(text: $certificates).font(.system(size: 11, design: .monospaced)).frame(height: 65)
                             .scrollContentBackground(.hidden).modifier(InputStyle()).accessibilityLabel("Trusted certificates").disabled(isReadOnly)
                     }.font(.system(size: 12))
-                    DisclosureGroup("Advanced arguments") {
-                        Text("One argument per line").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
-                        TextEditor(text: $extraArguments).font(.system(size: 11, design: .monospaced)).frame(height: 55)
-                            .scrollContentBackground(.hidden).modifier(InputStyle()).accessibilityLabel("Extra arguments").disabled(isReadOnly)
-                    }.font(.system(size: 12))
                 }.padding(.trailing, 2)
             }
             HStack(spacing: 8) {
@@ -348,7 +342,6 @@ struct ProfileEditor: View {
                             guard let port = Int(portText), (1...65535).contains(port) else { throw VPNError("Enter a port between 1 and 65535.") }
                             profile.port = port
                             profile.trustedCerts = lines(certificates)
-                            profile.extraArgs = lines(extraArguments)
                             try model.save(profile, password: password)
                             onDone()
                         } catch { self.error = error.localizedDescription }
@@ -357,7 +350,7 @@ struct ProfileEditor: View {
                 Button(isReadOnly ? "Done" : "Cancel", action: onDone).buttonStyle(FilledButton(color: Color.white.opacity(0.1))).keyboardShortcut(.cancelAction)
             }
         }
-        .onAppear { portText = String(profile.port); certificates = profile.trustedCerts.joined(separator: "\n"); extraArguments = profile.extraArgs.joined(separator: "\n") }
+        .onAppear { portText = String(profile.port); certificates = profile.trustedCerts.joined(separator: "\n") }
         .confirmationDialog("Delete \(profile.name)?", isPresented: $confirmDelete) {
             Button("Delete Profile", role: .destructive) { model.delete(profile); onDone() }
         } message: { Text("The saved password will also be removed from Keychain.") }

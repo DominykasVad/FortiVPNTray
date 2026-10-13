@@ -18,7 +18,7 @@ Connect with a password or SAML, close the window, and keep your VPN in the menu
 - **Menu bar first:** closing the window removes the running Dock icon while the VPN stays connected. Reopen it from the menu bar.
 - **Visible connection state:** a green filled checkmark shield when connected, an outline shield when disconnected, and distinct connecting/error icons.
 - **Live traffic:** VPN IP, connection duration, download/upload rates, session totals and a two-minute traffic chart in both the window and tray popover.
-- **Multiple profiles:** password and browser-based SAML authentication, optional realms and advanced arguments.
+- **Multiple profiles:** password and browser-based SAML authentication, and optional realms.
 - **macOS Keychain:** saved passwords stay in Keychain, not in profile JSON files.
 - **Certificate controls:** SHA256 certificate pins and a confirmation flow for untrusted gateways.
 - **DNS fallback:** system DNS is used only when enabled and the VPN provides none.

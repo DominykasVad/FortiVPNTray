@@ -27,7 +27,7 @@ The build produces an ad-hoc signed `.app` and `native/dist/FortiVPNTray-native-
 - Run one FortiVPNTray instance at a time. Do not connect multiple VPN clients concurrently: the helper manages system PPP interfaces, DNS and routes.
 - Settings distinguishes missing, incomplete, unresponsive, ready and incompatible helper states. Install/removal shows progress and verifies the result. During a VPN session, changing the helper is disabled with an explicit explanation; Refresh remains available. Uninstall asks for confirmation and keeps profiles/passwords.
 - The Helper is required for connections. Install/Repair in Settings uses `eu.dvad.fortivpntray.helper` label and socket.
-- Password and SAML profiles, realms, certificate pinning, explicit automatic certificate trust, debug logs, DNS fallback, current traffic rates and totals are supported. Extra arguments use one argument per line; credential/configuration/DNS overrides are rejected to retain application control.
+- Password and SAML profiles, realms, certificate pinning, explicit automatic certificate trust, debug logs, DNS fallback, current traffic rates and totals are supported.
 - DNS supplied by the VPN takes precedence. If fallback is enabled and the VPN supplies no DNS servers, the captured system DNS servers are used.
 - Logs in the UI are bounded and redact credentials and URLs. The private temporary log is removed on successful disconnect or detected process exit. No raw log export is provided.
 - New profiles can be saved during a session without changing the active or selected profile. Existing profiles can be opened read-only during a session; editing and deletion remain disabled; malformed configuration is preserved and reported rather than silently replaced.
