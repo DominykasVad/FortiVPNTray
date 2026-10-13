@@ -1,15 +1,24 @@
-name: PR checks
+name: CI general
 
 on:
+  push:
+    branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   hygiene:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -20,7 +29,9 @@ jobs:
         run: python3 .github/scripts/check_files.py
 
   actionlint:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     env:
       ACTIONLINT_VERSION: 1.7.12
       ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
@@ -39,7 +50,9 @@ jobs:
         run: '"$RUNNER_TEMP/actionlint" -color'
 
   gitleaks:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     env:
       GITLEAKS_VERSION: 8.30.1
       GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
@@ -57,10 +70,17 @@ jobs:
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" gitleaks
       - name: Scan the commits of this change
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
-          # A manual run has no pull request: scan what the branch adds to main.
-          base="${BASE_SHA:-origin/main}"
-          head="${HEAD_SHA:-HEAD}"
-          "$RUNNER_TEMP/gitleaks" git --redact --no-banner --log-opts="$base..$head"
+          if [ -n "$PR_BASE_SHA" ]; then
+            range="$PR_BASE_SHA..$PR_HEAD_SHA"
+          elif [ -n "$PUSH_BEFORE_SHA" ] && [ "$PUSH_BEFORE_SHA" != 0000000000000000000000000000000000000000 ]; then
+            # Push to main: the commits this push added.
+            range="$PUSH_BEFORE_SHA..$GITHUB_SHA"
+          else
+            # Manual run: what the branch adds to main.
+            range="origin/main..HEAD"
+          fi
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner --log-opts="$range"

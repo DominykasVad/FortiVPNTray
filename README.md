@@ -73,7 +73,7 @@ If the selected Xcode installation is unavailable, select an installed Command L
 DEVELOPER_DIR=/Library/Developer/CommandLineTools native/scripts/build.sh
 ```
 
-The [native CI workflow](.github/workflows/native.yml) tests and builds the Apple Silicon app; a [second workflow](.github/workflows/pr.yml) runs general checks on pull requests. CI publishes nothing: no artifacts, no GitHub Releases. There is no Homebrew cask.
+The [app CI workflow](.github/workflows/ci-app.yml) tests and builds the Apple Silicon app when `native/` or `helper/` change; a [general workflow](.github/workflows/ci-general.yml) runs file, workflow and secret checks on every pull request and on `main`. CI publishes nothing: no artifacts, no GitHub Releases. There is no Homebrew cask.
 
 ## First connection
 

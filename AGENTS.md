@@ -101,8 +101,10 @@ build dependencies without asking.
   Start the next task only after the previous one is merged into `main`. Never
   commit directly to `main`; the owner merges. Keep commits small.
 - Commit as often as useful, push the branch once when the task is ready for
-  review and open the PR then. Push again only for review fixes. CI
-  (`.github/workflows/native.yml`) runs on pull requests and `main`.
+  review and open the PR then. Push again only for review fixes. CI runs on
+  pull requests (not drafts) and `main`: `.github/workflows/ci-general.yml`
+  always, `.github/workflows/ci-app.yml` only when `native/`, `helper/` or that
+  workflow file change.
 - A phase's **Review checkpoint** in PLAN.md means: after its last task's PR,
   stop until the owner starts the next phase.
 - One PLAN.md task per change set. No drive-by refactors, renames or
