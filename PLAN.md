@@ -162,7 +162,7 @@ this only shapes Phase 2.
 ### Tasks — phase 1
 - [x] **1.1** S1 spike: code + install/remove scripts. *(maintainer)* runs it as root and reports; agent records result.
 - [x] **1.2** S2 spike: Homebrew copy + rewrite + re-sign script, manifest, `otool -L` evidence. *(maintainer)* runs it as root and does a real SAML connect.
-- [ ] **1.3** S3: `spikes/openfortivpn-config/FINDINGS.md`.
+- [x] **1.3** S3: `spikes/openfortivpn-config/FINDINGS.md`.
 
 **Review checkpoint 1** — decide transport (S1) and binary strategy (S2) here.
 
@@ -341,7 +341,7 @@ supersede it with a new one that names the old.
 
 ## Open questions
 
-- (none)
+- 1.3 / 2.3 · From S3 (`spikes/openfortivpn-config/FINDINGS.md`, "What this means for phase 2"): (a) pass the password on the child's stdin instead of writing it to the config file? (b) put host, port and every option in the config file so the child's argv is always `openfortivpn -c <file> -v`? Both are supported by openfortivpn 1.24.1; 2.3 currently lists command-line flags and does not say where the password goes. Needs the owner's decision before 2.3.
 
 ## Later / optional
 - Auto-reconnect after wake, connect on launch.
