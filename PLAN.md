@@ -95,7 +95,7 @@ Agent:
 ### Tasks — phase 0
 - [x] **0.0** *(maintainer)* Signing identity created in its own keychain, leaf SHA-1 recorded (human steps 1–3).
 - [x] **0.1** New identity `eu.dvad.fortivpntray` everywhere + `FortiVPNShared` target holding `AppIdentity` (agent item 1). Mechanical rename in its own commit, separate from the new target.
-- [ ] **0.2** `build.sh` signing via `FVT_SIGN_IDENTITY` / `FVT_SIGN_KEYCHAIN`, ad-hoc warning; after signing, print the leaf SHA-1 read from the built app (`codesign -d --extract-certificates` + hash, or equivalent) so it can be compared with the identity; `docs/signing.md` (agent item 2).
+- [x] **0.2** `build.sh` signing via `FVT_SIGN_IDENTITY` / `FVT_SIGN_KEYCHAIN`, ad-hoc warning; after signing, print the leaf SHA-1 read from the built app (`codesign -d --extract-certificates` + hash, or equivalent) so it can be compared with the identity; `docs/signing.md` (agent item 2).
 - [ ] **0.3** Remove `extraArgs`, decode-and-drop old profiles, tests (agent item 4).
 - [ ] **0.4** Move the package to Swift 6: `swift-tools-version: 6.0`, Swift 6 language mode for all targets. Fix strict-concurrency errors without `@unchecked Sendable` / `nonisolated(unsafe)` unless each use has a comment saying why. No behaviour change; tests stay green.
 
