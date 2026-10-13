@@ -106,11 +106,37 @@ struct CoreTests {
         expectTrue(args.contains("--saml-login")); expectTrue(args.contains("--realm=staff"))
         expectFalse(args.contains("-p")); expectFalse(args.contains("unused"))
     }
-    @Test func testExtraArgumentsCannotOverrideCredentialsOrDNS() {
-        for arg in ["--pppd-plugin=/tmp/x", "--config=/tmp/x", "-c/tmp/x", "-psecret", "--set-dns=1", "--cookie=secret", "--saml-login=9999", "--realm=other"] {
-            expectThrows(try Validation.extraArguments([arg]))
-        }
-        expectNoThrow(try Validation.extraArguments(["--persistent=5", "--pppd-use-syslog=1"]))
+    @Test func testStoredExtraArgumentsAreDroppedOnLoad() throws {
+        // Profiles written before extra arguments were removed may still carry them, including hostile ones.
+        let json = #"[{"id":"old-id","name":"Office","host":"vpn.example.com","port":8443,"auth_type":"Saml","username":null,"realm":"staff","trusted_certs":[],"ignore_cert_errors":false,"extra_args":["--pppd-plugin=/tmp/x","-c/tmp/x","--persistent=5"]}]"#
+        let values = try JSONDecoder().decode([VPNProfile].self, from: Data(json.utf8))
+        expectEqual(values.count, 1)
+        expectEqual(values[0].id, "old-id"); expectEqual(values[0].realm, "staff")
+        expectNoThrow(try values[0].validated())
+        expectEqual(try values[0].arguments(password: nil), ["vpn.example.com:8443", "--saml-login", "--realm=staff", "--set-dns=0", "--pppd-use-peerdns=0", "-v"])
+        let encoded = try JSONEncoder().encode(values)
+        expectNil((try JSONSerialization.jsonObject(with: encoded) as! [[String: Any]])[0]["extra_args"])
+        expectFalse(String(decoding: encoded, as: UTF8.self).contains("pppd-plugin"))
+    }
+    @Test func testStoredExtraArgumentsAreGoneAfterSave() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let json = #"[{"id":"old-id","name":"Office","host":"vpn.example.com","port":8443,"auth_type":"Password","username":"alice","trusted_certs":[],"extra_args":["--pppd-log=/tmp/x"]}]"#
+        try Data(json.utf8).write(to: folder.appendingPathComponent("profiles.json"))
+        let store = ConfigurationStore(directory: folder)
+        let loaded = try store.profiles()
+        expectEqual(loaded.map(\.name), ["Office"])
+        try store.save(profiles: loaded)
+        let saved = try String(contentsOf: folder.appendingPathComponent("profiles.json"), encoding: .utf8)
+        expectFalse(saved.contains("extra_args")); expectFalse(saved.contains("pppd-log"))
+        expectEqual(try store.profiles(), loaded)
+    }
+    @Test func testArgumentsAreExactlyTheManagedSet() throws {
+        var p = profile(); p.trustedCerts = [String(repeating: "a", count: 64)]; p.realm = "staff"
+        expectEqual(try p.arguments(password: "secret"), ["vpn.example.com:8443", "-u", "alice", "-p", "secret", "--trusted-cert=" + p.trustedCerts[0], "--realm=staff", "--set-dns=0", "--pppd-use-peerdns=0", "-v"])
+        p.authType = .saml; p.trustedCerts = []; p.realm = nil
+        expectEqual(try p.arguments(password: nil), ["vpn.example.com:8443", "--saml-login", "--set-dns=0", "--pppd-use-peerdns=0", "-v"])
     }
     @Test func testCertificateFingerprintsValidated() throws {
         var p = profile(); p.trustedCerts = [String(repeating: "a", count: 64)]
