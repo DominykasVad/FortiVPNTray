@@ -6,13 +6,13 @@ public struct VPNError: LocalizedError, Equatable {
     public var errorDescription: String? { message }
 }
 
-public enum AuthType: String, Codable, CaseIterable, Identifiable {
+public enum AuthType: String, Codable, CaseIterable, Identifiable, Sendable {
     case password = "Password", saml = "Saml"
     public var id: String { rawValue }
     public var title: String { self == .password ? "Password" : "SAML / SSO" }
 }
 
-public struct VPNProfile: Codable, Identifiable, Equatable {
+public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
     public var id = UUID().uuidString
     public var name = ""
     public var host = ""
@@ -81,7 +81,7 @@ public enum Validation {
     public static func digest(_ text: String) -> Bool { text.count == 64 && text.utf8.allSatisfy { (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0) } }
 }
 
-public struct AppSettings: Codable, Equatable {
+public struct AppSettings: Codable, Equatable, Sendable {
     public var debugMode = false
     public var helperDeclined = false
     public var dnsFallback = true

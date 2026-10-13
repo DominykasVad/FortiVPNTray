@@ -275,7 +275,7 @@ struct TrayView: View {
     }
 }
 
-private func panelHeader(_ title: String, back: @escaping () -> Void) -> some View {
+@MainActor private func panelHeader(_ title: String, back: @escaping () -> Void) -> some View {
     HStack(spacing: 8) {
         Button(action: back) { Image(systemName: "chevron.left") }.buttonStyle(.plain).foregroundStyle(Appearance.secondary).accessibilityLabel("Back")
         Text(title).font(.system(size: 14, weight: .semibold))

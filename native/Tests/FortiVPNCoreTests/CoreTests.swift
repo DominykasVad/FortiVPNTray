@@ -234,6 +234,8 @@ struct CoreTests {
         withUnsafeMutableBytes(of: &addr.sun_path) { buffer in Array(path.utf8CString).withUnsafeBytes { buffer.copyBytes(from: $0) } }
         let bound = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) } }
         guard bound == 0, listen(fd, 1) == 0 else { throw VPNError("Could not bind test socket: \(errno)") }
+        // @unchecked Sendable: only the server thread writes `data`, and the test reads it
+        // only after `done` is signalled, so the two never touch it at the same time.
         final class RequestBox: @unchecked Sendable { var data = Data() }
         let box = RequestBox()
         let done = DispatchSemaphore(value: 0)

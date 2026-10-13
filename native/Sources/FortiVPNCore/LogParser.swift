@@ -1,6 +1,6 @@
 import Foundation
 
-public enum LogEvent: Equatable {
+public enum LogEvent: Equatable, Sendable {
     case connected(String), disconnected, saml(URL), certificate(String)
 }
 

@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
@@ -14,5 +14,6 @@ let package = Package(
         .executableTarget(name: "FortiVPNTray", dependencies: ["FortiVPNCore", "FortiVPNShared"]),
         .testTarget(name: "FortiVPNSharedTests", dependencies: ["FortiVPNShared"]),
         .testTarget(name: "FortiVPNCoreTests", dependencies: ["FortiVPNCore", "FortiVPNShared"])
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )

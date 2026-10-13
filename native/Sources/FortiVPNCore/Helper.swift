@@ -122,7 +122,7 @@ public enum HelperInstaller {
 }
 
 /// A failed ping alone does not mean the helper is not installed.
-public struct HelperInstallationStatus: Equatable {
+public struct HelperInstallationStatus: Equatable, Sendable {
     public enum State { case missing, incomplete, unavailable, ready, versionMismatch }
     public let executablePresent: Bool
     public let launchDaemonPresent: Bool
