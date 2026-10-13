@@ -14,8 +14,9 @@ not add an upstream remote, do not cherry-pick, do not open PRs against
 `itstone/FortiVPNTray` or `walcew/openfortivpn-connect`.
 
 The GitHub repo is `DominykasVad/FortiVPNTray`. The fork's identity is
-`eu.dvad.fortivpntray` (helper `eu.dvad.fortivpntray.helper`); until PLAN.md
-task 0.1 is merged the code still uses upstream's `com.itstone.fortivpntray*`.
+`eu.dvad.fortivpntray` (helper `eu.dvad.fortivpntray.helper`); since task 0.1
+the code uses only the fork's identifiers; upstream's
+`com.itstone.fortivpntray*` must not reappear (IdentityTests enforces it).
 
 **This is the primary project.** A separate repository, openfortivpn-connect
 (Tauri, `src-tauri/`, pnpm), is the fallback with its own `PLAN.md` and
