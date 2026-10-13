@@ -110,7 +110,7 @@ public enum HelperInstaller {
         let plistPath = "/Library/LaunchDaemons/\(AppIdentity.helperLabel).plist"
         let plist: [String: Any] = ["Label": AppIdentity.helperLabel, "ProgramArguments": [destination],
             "RunAtLoad": true, "KeepAlive": true, "EnvironmentVariables": ["RUST_LOG": "info"],
-            "StandardOutPath": "/var/log/fortivpntray-helper.log", "StandardErrorPath": "/var/log/fortivpntray-helper.log"]
+            "StandardOutPath": "/var/log/eu.dvad.fortivpntray.helper.log", "StandardErrorPath": "/var/log/eu.dvad.fortivpntray.helper.log"]
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         let xml = String(decoding: data, as: UTF8.self)
         try Commands.administrator("set -e; /bin/launchctl bootout system/\(AppIdentity.helperLabel) 2>/dev/null || true; /bin/mkdir -p /Library/PrivilegedHelperTools; /usr/bin/install -o root -g wheel -m 755 \(Commands.shellQuote(source.path)) \(Commands.shellQuote(destination)); /usr/bin/printf '%s' \(Commands.shellQuote(xml)) > \(Commands.shellQuote(plistPath)); /usr/sbin/chown root:wheel \(Commands.shellQuote(plistPath)); /bin/chmod 644 \(Commands.shellQuote(plistPath)); /bin/launchctl bootstrap system \(Commands.shellQuote(plistPath))")

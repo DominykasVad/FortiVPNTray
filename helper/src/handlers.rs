@@ -167,7 +167,7 @@ fn cleanup_network(gateway: Option<&str>, vpn_server: Option<&str>) {
         .and_then(|mut child| {
             use std::io::Write;
             if let Some(mut stdin) = child.stdin.take() {
-                stdin.write_all(b"remove State:/Network/Service/FortiVPNTray/DNS\nquit\n")?;
+                stdin.write_all(b"remove State:/Network/Service/eu.dvad.fortivpntray/DNS\nquit\n")?;
             }
             child.wait()
         });
@@ -206,7 +206,7 @@ fn handle_setup_dns(servers: Vec<String>, suffixes: Vec<String>) -> Response {
             "d.init\n\
              d.add ServerAddresses * {servers}\n\
              d.add SupplementalMatchDomains * \"\"\n\
-             set State:/Network/Service/FortiVPNTray/DNS\n\
+             set State:/Network/Service/eu.dvad.fortivpntray/DNS\n\
              quit\n",
             servers = servers_str,
         )
@@ -217,7 +217,7 @@ fn handle_setup_dns(servers: Vec<String>, suffixes: Vec<String>) -> Response {
              d.add ServerAddresses * {servers}\n\
              d.add SupplementalMatchDomains * {domains}\n\
              d.add SearchDomains * {domains}\n\
-             set State:/Network/Service/FortiVPNTray/DNS\n\
+             set State:/Network/Service/eu.dvad.fortivpntray/DNS\n\
              quit\n",
             servers = servers_str,
             domains = domains,
@@ -261,7 +261,7 @@ fn handle_teardown_dns() -> Response {
         .and_then(|mut child| {
             use std::io::Write;
             if let Some(mut stdin) = child.stdin.take() {
-                stdin.write_all(b"remove State:/Network/Service/FortiVPNTray/DNS\nquit\n")?;
+                stdin.write_all(b"remove State:/Network/Service/eu.dvad.fortivpntray/DNS\nquit\n")?;
             }
             child.wait()
         });

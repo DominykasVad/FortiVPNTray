@@ -16,7 +16,7 @@ pub fn is_valid_hostname(s: &str) -> bool {
 
 /// Validate a log file path — must be under /tmp/ and not contain path traversal.
 pub fn is_valid_log_path(s: &str) -> bool {
-    s.starts_with("/tmp/fortivpntray-") && !s.contains("..")
+    s.starts_with("/tmp/eu.dvad.fortivpntray-") && !s.contains("..")
 }
 
 /// Check that a process with the given PID is actually openfortivpn.
@@ -102,9 +102,9 @@ mod tests {
 
     #[test]
     fn test_valid_log_path() {
-        assert!(is_valid_log_path("/tmp/fortivpntray-abc123.log"));
+        assert!(is_valid_log_path("/tmp/eu.dvad.fortivpntray-abc123.log"));
         assert!(is_valid_log_path(
-            "/tmp/fortivpntray-550e8400-e29b-41d4-a716-446655440000.log"
+            "/tmp/eu.dvad.fortivpntray-550e8400-e29b-41d4-a716-446655440000.log"
         ));
     }
 
@@ -113,7 +113,7 @@ mod tests {
         assert!(!is_valid_log_path("/etc/passwd"));
         assert!(!is_valid_log_path("/tmp/other-file.log"));
         assert!(!is_valid_log_path("/tmp/openvpngui-abc123.log"));
-        assert!(!is_valid_log_path("/tmp/fortivpntray-../../etc/passwd"));
+        assert!(!is_valid_log_path("/tmp/eu.dvad.fortivpntray-../../etc/passwd"));
     }
 
     #[test]

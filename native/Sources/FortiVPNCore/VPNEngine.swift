@@ -50,8 +50,8 @@ public actor VPNEngine {
         gateway = Self.defaultGateway()
         serverIP = Self.resolveIPv4(profile.host)
         fallbackDNS = settings.dnsFallback ? Self.currentDNS() : []
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("fortivpntray-\(UUID().uuidString).log")
-        // The legacy helper explicitly accepts only /tmp/fortivpntray-* paths.
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("eu.dvad.fortivpntray-\(UUID().uuidString).log")
+        // The legacy helper explicitly accepts only /tmp/eu.dvad.fortivpntray-* paths.
         let helperURL = URL(fileURLWithPath: "/tmp/\(url.lastPathComponent)")
         let fd = open(helperURL.path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, S_IRUSR | S_IWUSR)
         guard fd >= 0 else { throw VPNError("Could not create the private VPN log.") }
