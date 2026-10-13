@@ -266,13 +266,13 @@ Extend `HelperInstaller` (`Helper.swift`): single admin prompt that `install`s t
 helper binary root:wheel, copies openfortivpn + its dylibs from Homebrew into
 `/Library/PrivilegedHelperTools/<label>.d/` per S2 (rewrite, re-sign, manifest),
 refuses if Homebrew's openfortivpn is missing, creates
-run/log/state dirs, writes the plist (with `MachServices`, `--allowed-uid`,
-`--client-req-leaf`), `launchctl bootout` + `bootstrap`. Uninstall removes all of
+run/log/state dirs, writes the plist (with `MachServices`, `--allowed-uid`, and
+`--client-req-leaf` or `--uid-only`), `launchctl bootout` + `bootstrap`. Uninstall removes all of
 it. Version check compares **protocol** version.
 
 ### Tasks — phase 2
 - [x] **2.0** Package layout: `FortiVPNShared` gets protocol types, validators, `LogParser`/`LogBuffer` (moves only, no behaviour change).
-- [ ] **2.1** Transport + caller check.
+- [x] **2.1** Transport + caller check.
 - [ ] **2.2** API + `ConnectRequest` validation, with tests for every rejection rule.
 - [ ] **2.3** Spawning: config writer, argv builder, binary/dylib ownership checks.
 - [ ] **2.4** Logs: ring buffer + redaction.
@@ -359,6 +359,7 @@ supersede it with a new one that names the old.
 - 2026-10-13 · 1.2 · Child OpenSSL pinned via OPENSSL_CONF=/dev/null, OPENSSL_MODULES=<root dir>, SSL_CERT_FILE=/etc/ssl/cert.pem; no static build · Homebrew OpenSSL's compiled-in openssldir is user-writable and openssl.cnf can load code as root.
 - 2026-10-13 · 1.3 · Password authentication dropped; SAML is the only auth method · the gateway uses SAML/Entra; removes Keychain handling, password transport to root and F9 entirely.
 - 2026-10-13 · 1.3 · Child argv is fixed (`-c <file> -v` + helper-chosen flags without a config key); host, port, realm, trusted certs etc. only in the validated config file · nothing caller-derived reaches argv; S3 showed -c fully replaces the default config.
+- 2026-10-13 · 2.1 · UID-only mode needs an explicit `--uid-only` launch argument; `--allowed-uid` without `--client-req-leaf` or `--uid-only` is an error · a damaged or hand-edited plist must not silently start the helper with the weaker caller check.
 
 ## Open questions
 
