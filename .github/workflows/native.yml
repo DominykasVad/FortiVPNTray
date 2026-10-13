@@ -3,7 +3,6 @@ name: Native macOS
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -14,8 +13,12 @@ jobs:
   build:
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-09
+        with:
+          toolchain: stable
       - name: Verify Apple Silicon runner
         run: test "$(uname -m)" = arm64
       - name: Test Swift core
@@ -36,53 +39,9 @@ jobs:
           exit "$result"
       - name: Test connection helper
         run: cargo test --manifest-path helper/Cargo.toml --locked
-      - name: Verify release version
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          version=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' native/Resources/Info.plist)
-          test "$RELEASE_TAG" = "v$version"
-          test -f "docs/releases/$RELEASE_TAG.md"
       - name: Build native application
         run: native/scripts/build.sh
       - name: Verify signature and archive
         run: |
           codesign --verify --deep --strict native/dist/FortiVPNTray.app
           unzip -t native/dist/FortiVPNTray-native-arm64.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: FortiVPNTray-native-arm64
-          path: native/dist/FortiVPNTray-native-arm64.zip
-          if-no-files-found: error
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: FortiVPNTray-native-arm64
-          path: release-assets
-      - name: Publish verified native application
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          cd release-assets
-          sha256sum FortiVPNTray-native-arm64.zip > SHA256SUMS
-          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            # Updating release documentation must not replace published binaries.
-            gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
-              --title "FortiVPNTray $RELEASE_TAG" --target "$GITHUB_SHA" \
-              --notes-file "../docs/releases/$RELEASE_TAG.md"
-          else
-            gh release create "$RELEASE_TAG" FortiVPNTray-native-arm64.zip SHA256SUMS \
-              --repo "$GITHUB_REPOSITORY" --verify-tag --latest \
-              --title "FortiVPNTray $RELEASE_TAG" \
-              --notes-file "../docs/releases/$RELEASE_TAG.md"
-          fi
