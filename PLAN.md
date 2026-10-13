@@ -160,7 +160,7 @@ Read the pinned openfortivpn source (`src/main.c`, `src/config.c`):
 this only shapes Phase 2.
 
 ### Tasks — phase 1
-- [ ] **1.1** S1 spike: code + install/remove scripts. *(maintainer)* runs it as root and reports; agent records result.
+- [x] **1.1** S1 spike: code + install/remove scripts. *(maintainer)* runs it as root and reports; agent records result.
 - [ ] **1.2** S2 spike: Homebrew copy + rewrite + re-sign script, manifest, `otool -L` evidence. *(maintainer)* runs it as root and does a real SAML connect.
 - [ ] **1.3** S3: `spikes/openfortivpn-config/FINDINGS.md`.
 
@@ -331,6 +331,7 @@ supersede it with a new one that names the old.
 - 2026-10-13 · 0.4 · Whole package on Swift 6 language mode before phase 2 · the new root helper is written in strict concurrency from the start instead of migrated later.
 - 2026-10-13 · 0.5 · No GitHub Releases from CI; CI only tests and builds · CI builds are ad-hoc signed and would run the helper in UID-only mode, and the fork is not distributed.
 - 2026-10-13 · 0.6 · Two workflows: general checks always, app build/tests only when native/ or helper/ change; no separate Rust workflow · build.sh compiles the helper into the app anyway, and the Rust helper is removed in 2.7.
+- 2026-10-13 · 1.1 · S1 passed: XPC Mach service with `setCodeSigningRequirement` (identifier + certificate leaf hash) plus UID check; UID-only fallback not needed · self-signed identity accepted, ad-hoc and wrong identifier rejected, rebuild with same identity still accepted.
 
 ## Open questions
 
