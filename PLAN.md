@@ -335,7 +335,7 @@ supersede it with a new one that names the old.
 
 ## Open questions
 
-- (none)
+- 1.2 / 2.3 · OpenSSL in the copied openfortivpn still reads `/opt/homebrew/etc/openssl@4/openssl.cnf` (which can load code) and `cert.pem`, both user-writable, even with load paths rewritten and the environment cleared. Proposed: the helper sets `OPENSSL_CONF=/dev/null`, `OPENSSL_MODULES=<root-owned dir>` and `SSL_CERT_FILE=/etc/ssl/cert.pem` for the child, in addition to `PATH`. Alternative: the S2 fallback (static build with a root-owned openssldir). Evidence: `spikes/openfortivpn-copy/README.md`. Needs the owner's decision before 2.3.
 
 ## Later / optional
 - Auto-reconnect after wake, connect on launch.
