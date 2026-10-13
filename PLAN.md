@@ -271,7 +271,7 @@ run/log/state dirs, writes the plist (with `MachServices`, `--allowed-uid`,
 it. Version check compares **protocol** version.
 
 ### Tasks — phase 2
-- [ ] **2.0** Package layout: `FortiVPNShared` gets protocol types, validators, `LogParser`/`LogBuffer` (moves only, no behaviour change).
+- [x] **2.0** Package layout: `FortiVPNShared` gets protocol types, validators, `LogParser`/`LogBuffer` (moves only, no behaviour change).
 - [ ] **2.1** Transport + caller check.
 - [ ] **2.2** API + `ConnectRequest` validation, with tests for every rejection rule.
 - [ ] **2.3** Spawning: config writer, argv builder, binary/dylib ownership checks.
