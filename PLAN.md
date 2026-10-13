@@ -161,7 +161,7 @@ this only shapes Phase 2.
 
 ### Tasks — phase 1
 - [x] **1.1** S1 spike: code + install/remove scripts. *(maintainer)* runs it as root and reports; agent records result.
-- [ ] **1.2** S2 spike: Homebrew copy + rewrite + re-sign script, manifest, `otool -L` evidence. *(maintainer)* runs it as root and does a real SAML connect.
+- [x] **1.2** S2 spike: Homebrew copy + rewrite + re-sign script, manifest, `otool -L` evidence. *(maintainer)* runs it as root and does a real SAML connect.
 - [ ] **1.3** S3: `spikes/openfortivpn-config/FINDINGS.md`.
 
 **Review checkpoint 1** — decide transport (S1) and binary strategy (S2) here.
@@ -219,8 +219,12 @@ the tunnel provides no DNS). Reject anything else; one session at a time.
   (the root-owned copy — never the Homebrew path).
   Before each spawn: file + every parent dir root-owned, not group/other
   writable, regular file, not symlink; same for every copied dylib; sha256 of the set matches the manifest, otherwise refuse.
-- Child env cleared, `PATH=/usr/bin:/bin:/usr/sbin:/sbin`. stdout/stderr piped
-  to the helper. Config file deleted once tunnel is up and on any exit.
+- Child env cleared, then exactly: `PATH=/usr/bin:/bin:/usr/sbin:/sbin`,
+  `OPENSSL_CONF=/dev/null`, `OPENSSL_MODULES=<root-owned dir>`,
+  `SSL_CERT_FILE=/etc/ssl/cert.pem` (S2: Homebrew OpenSSL's compiled-in openssldir
+  is user-writable). A test proves the child opens no `/opt/homebrew` path.
+  stdout/stderr piped to the helper. Config file deleted once tunnel is up and
+  on any exit.
 
 ### 2.4 Logs (F5)
 Helper keeps an in-memory ring buffer per session (redacted with `LogParser.redacted`
@@ -332,10 +336,12 @@ supersede it with a new one that names the old.
 - 2026-10-13 · 0.5 · No GitHub Releases from CI; CI only tests and builds · CI builds are ad-hoc signed and would run the helper in UID-only mode, and the fork is not distributed.
 - 2026-10-13 · 0.6 · Two workflows: general checks always, app build/tests only when native/ or helper/ change; no separate Rust workflow · build.sh compiles the helper into the app anyway, and the Rust helper is removed in 2.7.
 - 2026-10-13 · 1.1 · S1 passed: XPC Mach service with `setCodeSigningRequirement` (identifier + certificate leaf hash) plus UID check; UID-only fallback not needed · self-signed identity accepted, ad-hoc and wrong identifier rejected, rebuild with same identity still accepted.
+- 2026-10-13 · 1.2 · S2 passed: root-owned copy of Homebrew openfortivpn + OpenSSL dylibs, paths rewritten, re-signed, manifest with installed and shipped hashes · real SAML connect through the copy worked.
+- 2026-10-13 · 1.2 · Child OpenSSL pinned via OPENSSL_CONF=/dev/null, OPENSSL_MODULES=<root dir>, SSL_CERT_FILE=/etc/ssl/cert.pem; no static build · Homebrew OpenSSL's compiled-in openssldir is user-writable and openssl.cnf can load code as root.
 
 ## Open questions
 
-- 1.2 / 2.3 · OpenSSL in the copied openfortivpn still reads `/opt/homebrew/etc/openssl@4/openssl.cnf` (which can load code) and `cert.pem`, both user-writable, even with load paths rewritten and the environment cleared. Proposed: the helper sets `OPENSSL_CONF=/dev/null`, `OPENSSL_MODULES=<root-owned dir>` and `SSL_CERT_FILE=/etc/ssl/cert.pem` for the child, in addition to `PATH`. Alternative: the S2 fallback (static build with a root-owned openssldir). Evidence: `spikes/openfortivpn-copy/README.md`. Needs the owner's decision before 2.3.
+- (none)
 
 ## Later / optional
 - Auto-reconnect after wake, connect on launch.

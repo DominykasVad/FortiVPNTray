@@ -5,10 +5,12 @@ Throwaway spike for PLAN.md phase 1, task 1.2. Not part of the app.
 **Question:** can Homebrew's `openfortivpn` and the libraries it loads be copied into a
 root-owned directory so that root never executes or loads anything under `/opt/homebrew`?
 
-**Short answer so far:** the binary and its dylibs, yes. But OpenSSL also reads a
-configuration file and a CA bundle from paths compiled into the library, both under
-`/opt/homebrew`, and the configuration file can load code. Copying is not enough;
-see [Finding](#finding-openssl-reads-user-writable-files-that-are-not-dylibs).
+**Answer:** yes, with one addition. The binary and its dylibs copy cleanly, but
+OpenSSL also reads a configuration file and a CA bundle from paths compiled into the
+library, both under `/opt/homebrew`, and the configuration file can load code. The
+helper therefore also pins three OpenSSL environment variables; see
+[Finding](#finding-openssl-reads-user-writable-files-that-are-not-dylibs) and
+[Result](#result).
 
 ## What is here
 
@@ -172,11 +174,11 @@ by editing Homebrew's file, which the agent does not modify; that the default fi
 *read* is shown by the first run. openfortivpn itself was not run this far, because it
 exits without root before touching OpenSSL.
 
-**This needs a decision before phase 2** (recorded in PLAN.md "Open questions"):
-PLAN.md 2.3 says the child environment is cleared with only `PATH` set. Recommended:
-the helper also sets the three variables above, with fixed, helper-chosen values.
-The alternative is the S2 fallback, a statically linked openfortivpn built with a
-root-owned `--openssldir`.
+When the spike was written, PLAN.md 2.3 cleared the child environment and set only
+`PATH`. Two ways out were put to the owner: the helper also sets the three variables
+above, with fixed, helper-chosen values; or the S2 fallback, a statically linked
+openfortivpn built with a root-owned `--openssldir`. The first was chosen; see
+[Result](#result).
 
 ## Running it (maintainer)
 
@@ -202,6 +204,39 @@ result; `RESULT: PASS` from `copy.sh` and "tunnel came up / did not" are enough.
 **Pass:** `copy.sh` as root ends with `RESULT: PASS`, and the SAML connect brings the
 tunnel up from the copy.
 
-## Result (maintainer run)
+## Result
 
-_Not run yet._
+**PASS**, run by the maintainer on 2026-10-13, macOS 15.7.9 (Apple Silicon),
+openfortivpn 1.24.1 with OpenSSL 4.0.3 from Homebrew.
+
+| Step | Outcome |
+|---|---|
+| `sudo copy.sh` | `RESULT: PASS`, ownership checks included |
+| `verify.sh` (no root) | passed |
+| Real connect from the copy | `--saml-login` with the env-pinned OpenSSL brought the tunnel up |
+
+The connect used the environment shown under "Running it": `PATH`,
+`OPENSSL_CONF=/dev/null`, `OPENSSL_MODULES` inside the copy and
+`SSL_CERT_FILE=/etc/ssl/cert.pem`. Gateway host, port, certificate digests and the
+SAML URL are deliberately not recorded.
+
+### SAML and a non-default VPN port
+
+The first SAML attempts timed out with openfortivpn waiting on `127.0.0.1:8020`.
+The cause was on the gateway, not in the copy: its SAML service-provider URLs had no
+port, while SSL VPN listens on a non-default port, so the browser was never sent back
+to a place that leads to the local listener. It was fixed on the gateway; the SP URLs
+now include the VPN port.
+
+Requirement for the external-browser flow, worth stating in the user documentation
+(3.3): the gateway's SAML SP entity ID and ACS URL must use the SSL VPN `host:port`.
+
+### Decision
+
+The owner accepted the environment approach (PLAN.md decision log, 2026-10-13, 1.2):
+the helper pins the child's OpenSSL paths with the three variables, and there is no
+static build. PLAN.md 2.3 now lists them and requires a test that the child opens no
+`/opt/homebrew` path.
+
+When this result was recorded, the root-owned copy was still present on the
+maintainer's Mac; `sudo spikes/openfortivpn-copy/remove.sh` deletes it.
