@@ -1,17 +1,32 @@
-name: Native macOS
+name: CI app
 
 on:
   push:
     branches: [main]
+    paths:
+      - native/**
+      - helper/**
+      - .github/workflows/ci-app.yml
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - native/**
+      - helper/**
+      - .github/workflows/ci-app.yml
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: macos-15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
