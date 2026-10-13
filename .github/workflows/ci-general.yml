@@ -76,9 +76,14 @@ jobs:
         run: |
           if [ -n "$PR_BASE_SHA" ]; then
             range="$PR_BASE_SHA..$PR_HEAD_SHA"
-          elif [ -n "$PUSH_BEFORE_SHA" ] && [ "$PUSH_BEFORE_SHA" != 0000000000000000000000000000000000000000 ]; then
-            # Push to main: the commits this push added.
-            range="$PUSH_BEFORE_SHA..$GITHUB_SHA"
+          elif [ "$GITHUB_EVENT_NAME" = push ]; then
+            if [ -n "$PUSH_BEFORE_SHA" ] && git cat-file -e "$PUSH_BEFORE_SHA^{commit}" 2>/dev/null; then
+              # Push to main: the commits this push added.
+              range="$PUSH_BEFORE_SHA..$GITHUB_SHA"
+            else
+              # Force push: the previous head is not in the clone. Scan the pushed head commit.
+              range="$GITHUB_SHA^..$GITHUB_SHA"
+            fi
           else
             # Manual run: what the branch adds to main.
             range="origin/main..HEAD"
