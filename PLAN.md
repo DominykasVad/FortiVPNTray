@@ -97,6 +97,7 @@ Agent:
 - [x] **0.1** New identity `eu.dvad.fortivpntray` everywhere + `FortiVPNShared` target holding `AppIdentity` (agent item 1). Mechanical rename in its own commit, separate from the new target.
 - [x] **0.2** `build.sh` signing via `FVT_SIGN_IDENTITY` / `FVT_SIGN_KEYCHAIN`, ad-hoc warning; after signing, print the leaf SHA-1 read from the built app (`codesign -d --extract-certificates` + hash, or equivalent) so it can be compared with the identity; `docs/signing.md` (agent item 2).
 - [ ] **0.3** Remove `extraArgs`, decode-and-drop old profiles, tests (agent item 4).
+- [ ] **0.4** Move the package to Swift 6: `swift-tools-version: 6.0`, Swift 6 language mode for all targets. Fix strict-concurrency errors without `@unchecked Sendable` / `nonisolated(unsafe)` unless each use has a comment saying why. No behaviour change; tests stay green.
 
 **Review checkpoint 0.**
 
@@ -319,6 +320,7 @@ supersede it with a new one that names the old.
 - 2026-10-13 · — · No paid Apple account, no SMAppService · see Hard constraints.
 - 2026-10-13 · — · openfortivpn is never bundled in the app or its release zip; a separate installer (from S2's build) puts it in the root-owned dir · keeps the MIT app free of GPLv3 distribution obligations.
 - 2026-10-13 · — · Supersedes the previous line: no separate installer. The helper installer copies Homebrew's openfortivpn + dylibs into the root-owned dir on admin approval; the app detects Homebrew changes by set hash and offers Update; never bundled · root must not run user-writable files (F3), copying locally is not distribution, user decides on every update.
+- 2026-10-13 · 0.4 · Whole package on Swift 6 language mode before phase 2 · the new root helper is written in strict concurrency from the start instead of migrated later.
 
 ## Open questions
 
