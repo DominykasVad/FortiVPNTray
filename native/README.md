@@ -16,7 +16,7 @@ If needed, prefix the build commands with `DEVELOPER_DIR=/Library/Developer/Comm
 
 Set `FORTIVPNTRAY_OUTPUT_DIR="$PWD/native/dist/development"` when building to a separate bundle without replacing a running app. Quit the existing app before launching the new bundle.
 
-The build produces an ad-hoc signed `.app` and `native/dist/FortiVPNTray-native-arm64.zip`; it is not a notarized distribution. Node/npm are not required. The Rust build compiles only the standalone helper package.
+The build produces an ad-hoc signed `.app` and `native/dist/FortiVPNTray-native-arm64.zip`; it is not a notarized distribution. Set `FVT_SIGN_IDENTITY` (and optionally `FVT_SIGN_KEYCHAIN`) to sign with the local identity instead; see [docs/signing.md](../docs/signing.md). Node/npm are not required. The Rust build compiles only the standalone helper package.
 
 ## Application behavior
 
