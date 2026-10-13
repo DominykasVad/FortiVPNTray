@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import Darwin
 @testable import FortiVPNCore
+import FortiVPNShared
 
 struct CoreTests {
     private func profile() -> VPNProfile {

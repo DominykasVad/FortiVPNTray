@@ -9,8 +9,10 @@ let package = Package(
         .executable(name: "FortiVPNTray", targets: ["FortiVPNTray"])
     ],
     targets: [
-        .target(name: "FortiVPNCore"),
-        .executableTarget(name: "FortiVPNTray", dependencies: ["FortiVPNCore"]),
-        .testTarget(name: "FortiVPNCoreTests", dependencies: ["FortiVPNCore"])
+        .target(name: "FortiVPNShared"),
+        .target(name: "FortiVPNCore", dependencies: ["FortiVPNShared"]),
+        .executableTarget(name: "FortiVPNTray", dependencies: ["FortiVPNCore", "FortiVPNShared"]),
+        .testTarget(name: "FortiVPNSharedTests", dependencies: ["FortiVPNShared"]),
+        .testTarget(name: "FortiVPNCoreTests", dependencies: ["FortiVPNCore", "FortiVPNShared"])
     ]
 )

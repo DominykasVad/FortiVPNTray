@@ -23,10 +23,10 @@ The build produces an ad-hoc signed `.app` and `native/dist/FortiVPNTray-native-
 - Closing the main window switches the app to Accessory mode: no running Dock icon, but the status item and VPN remain. Open it from the menu bar to restore the window and Dock icon. Minimize retains normal macOS behavior.
 - Connection errors keep a hidden main window hidden. The tray offers a message-review action; opening the window displays the pending error.
 - Quit disconnects the current session before exiting. A failed disconnect keeps the application open with an actionable error.
-- Profiles, settings and Keychain passwords use `com.itstone.fortivpntray`.
+- Profiles, settings and Keychain passwords use `eu.dvad.fortivpntray`.
 - Run one FortiVPNTray instance at a time. Do not connect multiple VPN clients concurrently: the helper manages system PPP interfaces, DNS and routes.
 - Settings distinguishes missing, incomplete, unresponsive, ready and incompatible helper states. Install/removal shows progress and verifies the result. During a VPN session, changing the helper is disabled with an explicit explanation; Refresh remains available. Uninstall asks for confirmation and keeps profiles/passwords.
-- The Helper is required for connections. Install/Repair in Settings uses `com.itstone.fortivpntray.helper` label and socket.
+- The Helper is required for connections. Install/Repair in Settings uses `eu.dvad.fortivpntray.helper` label and socket.
 - Password and SAML profiles, realms, certificate pinning, explicit automatic certificate trust, debug logs, DNS fallback, current traffic rates and totals are supported. Extra arguments use one argument per line; credential/configuration/DNS overrides are rejected to retain application control.
 - DNS supplied by the VPN takes precedence. If fallback is enabled and the VPN supplies no DNS servers, the captured system DNS servers are used.
 - Logs in the UI are bounded and redact credentials and URLs. The private temporary log is removed on successful disconnect or detected process exit. No raw log export is provided.

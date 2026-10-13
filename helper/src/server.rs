@@ -7,7 +7,7 @@ use tokio::net::UnixListener;
 use crate::handlers;
 use crate::protocol::Request;
 
-pub const SOCKET_PATH: &str = "/var/run/fortivpntray-helper.sock";
+pub const SOCKET_PATH: &str = "/var/run/eu.dvad.fortivpntray.helper.sock";
 
 pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
     // Remove stale socket file if it exists

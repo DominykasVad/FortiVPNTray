@@ -95,10 +95,10 @@ The [native CI workflow](.github/workflows/native.yml) tests and builds the Appl
 
 The helper runs with administrator privileges to manage the VPN process and network configuration. The helper executable is `openvpngui-helper`; the desktop client is Swift.
 
-- App/configuration/Keychain identifier: `com.itstone.fortivpntray`.
-- Helper service: `com.itstone.fortivpntray.helper`.
-- Helper socket: `/var/run/fortivpntray-helper.sock`.
-- Helper log: `/var/log/fortivpntray-helper.log`.
+- App/configuration/Keychain identifier: `eu.dvad.fortivpntray`.
+- Helper service: `eu.dvad.fortivpntray.helper`.
+- Helper socket: `/var/run/eu.dvad.fortivpntray.helper.sock`.
+- Helper log: `/var/log/eu.dvad.fortivpntray.helper.log`.
 
 Run only one FortiVPNTray instance, and do not connect another VPN client concurrently: the helper manages system PPP interfaces, DNS and routes.
 

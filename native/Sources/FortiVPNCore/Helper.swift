@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import FortiVPNShared
 
 public struct HelperResponse: Decodable {
     public let ok: Bool
@@ -106,17 +107,17 @@ public enum HelperInstaller {
     public static func install(resourceDirectory: URL) throws {
         let source = resourceDirectory.appendingPathComponent("openvpngui-helper")
         guard FileManager.default.isExecutableFile(atPath: source.path) else { throw VPNError("The bundled helper is missing. Rebuild the .app using native/scripts/build.sh.") }
-        let destination = "/Library/PrivilegedHelperTools/\(AppIdentity.helperLabel)"
-        let plistPath = "/Library/LaunchDaemons/\(AppIdentity.helperLabel).plist"
+        let destination = AppIdentity.helperExecutablePath
+        let plistPath = AppIdentity.launchDaemonPlistPath
         let plist: [String: Any] = ["Label": AppIdentity.helperLabel, "ProgramArguments": [destination],
             "RunAtLoad": true, "KeepAlive": true, "EnvironmentVariables": ["RUST_LOG": "info"],
-            "StandardOutPath": "/var/log/fortivpntray-helper.log", "StandardErrorPath": "/var/log/fortivpntray-helper.log"]
+            "StandardOutPath": AppIdentity.helperLogPath, "StandardErrorPath": AppIdentity.helperLogPath]
         let data = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
         let xml = String(decoding: data, as: UTF8.self)
         try Commands.administrator("set -e; /bin/launchctl bootout system/\(AppIdentity.helperLabel) 2>/dev/null || true; /bin/mkdir -p /Library/PrivilegedHelperTools; /usr/bin/install -o root -g wheel -m 755 \(Commands.shellQuote(source.path)) \(Commands.shellQuote(destination)); /usr/bin/printf '%s' \(Commands.shellQuote(xml)) > \(Commands.shellQuote(plistPath)); /usr/sbin/chown root:wheel \(Commands.shellQuote(plistPath)); /bin/chmod 644 \(Commands.shellQuote(plistPath)); /bin/launchctl bootstrap system \(Commands.shellQuote(plistPath))")
     }
     public static func uninstall() throws {
-        try Commands.administrator("set -e; /bin/launchctl bootout system/\(AppIdentity.helperLabel) 2>/dev/null || true; /bin/rm -f /Library/PrivilegedHelperTools/\(AppIdentity.helperLabel) /Library/LaunchDaemons/\(AppIdentity.helperLabel).plist \(AppIdentity.socketPath)")
+        try Commands.administrator("set -e; /bin/launchctl bootout system/\(AppIdentity.helperLabel) 2>/dev/null || true; /bin/rm -f \(AppIdentity.helperExecutablePath) \(AppIdentity.launchDaemonPlistPath) \(AppIdentity.socketPath)")
     }
 }
 
@@ -159,8 +160,8 @@ public struct HelperInstallationStatus: Equatable {
     }
     public static func inspect() -> Self {
         let files = FileManager.default
-        return Self(executablePresent: files.fileExists(atPath: "/Library/PrivilegedHelperTools/\(AppIdentity.helperLabel)"),
-                    launchDaemonPresent: files.fileExists(atPath: "/Library/LaunchDaemons/\(AppIdentity.helperLabel).plist"),
+        return Self(executablePresent: files.fileExists(atPath: AppIdentity.helperExecutablePath),
+                    launchDaemonPresent: files.fileExists(atPath: AppIdentity.launchDaemonPlistPath),
                     version: try? HelperClient(timeoutSeconds: 2).version())
     }
 }

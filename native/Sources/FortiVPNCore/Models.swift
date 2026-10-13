@@ -1,12 +1,5 @@
 import Foundation
 
-public enum AppIdentity {
-    public static let identifier = "com.itstone.fortivpntray"
-    public static let helperLabel = "com.itstone.fortivpntray.helper"
-    public static let helperVersion = "0.1.9"
-    public static let socketPath = "/var/run/fortivpntray-helper.sock"
-}
-
 public struct VPNError: LocalizedError, Equatable {
     public let message: String
     public init(_ message: String) { self.message = message }

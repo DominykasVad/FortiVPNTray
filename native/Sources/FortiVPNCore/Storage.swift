@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import FortiVPNShared
 
 public struct ConfigurationStore {
     public let directory: URL
