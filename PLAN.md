@@ -21,7 +21,7 @@ helper is safe even when a hostile process runs as the logged-in user.
 
 ## Status
 
-**Current phase: 1**, starting with 1.1. Phase 0 is done (all tasks merged).
+**Current phase: 2**, starting with 2.0. Phases 0 and 1 are done (all tasks merged).
 How to work (branches, commits, definition of done, hard rules): see
 `AGENTS.md`. Each phase ends with a
 **task list**; one task = one sub-phase = one branch = one PR. Tick the box in
@@ -160,9 +160,14 @@ Read the pinned openfortivpn source (`src/main.c`, `src/config.c`):
 this only shapes Phase 2.
 
 ### Tasks — phase 1
+<details>
+<summary>All 3 tasks done (1.1–1.3)</summary>
+
 - [x] **1.1** S1 spike: code + install/remove scripts. *(maintainer)* runs it as root and reports; agent records result.
 - [x] **1.2** S2 spike: Homebrew copy + rewrite + re-sign script, manifest, `otool -L` evidence. *(maintainer)* runs it as root and does a real SAML connect.
 - [x] **1.3** S3: `spikes/openfortivpn-config/FINDINGS.md`.
+
+</details>
 
 **Review checkpoint 1** — decide transport (S1) and binary strategy (S2) here.
 
