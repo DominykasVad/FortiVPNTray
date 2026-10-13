@@ -99,7 +99,7 @@ Agent:
 - [x] **0.3** Remove `extraArgs`, decode-and-drop old profiles, tests (agent item 4).
 - [x] **0.4** Move the package to Swift 6: `swift-tools-version: 6.0`, Swift 6 language mode for all targets. Fix strict-concurrency errors without `@unchecked Sendable` / `nonisolated(unsafe)` unless each use has a comment saying why. No behaviour change; tests stay green.
 - [x] **0.5** CI: remove the release job, release-version check and artifact upload; keep tests + build + `codesign --verify`; add a general PR workflow (actionlint, file hygiene: valid YAML/JSON/plist, no merge-conflict markers, final newline, no trailing whitespace; >5 MiB guard; gitleaks on the PR commits; Markdown link check); pin all actions to commit SHAs; keep `permissions: contents: read`.
-- [x] **0.6** Split CI like Lithica: `ci-general.yml` (from pr.yml; every PR + push to main, no path filter) and `ci-app.yml` (from native.yml; only on `native/**`, `helper/**`, its own file). Both: concurrency with cancel-in-progress, skip drafts, timeout-minutes, `types: [opened, synchronize, reopened, ready_for_review]`. Keep SHA pinning and `contents: read`. Update AGENTS.md CI sentence.
+- [x] **0.6** Split CI into two workflows: `ci-general.yml` (from pr.yml; every PR + push to main, no path filter) and `ci-app.yml` (from native.yml; only on `native/**`, `helper/**`, its own file). Both: concurrency with cancel-in-progress, skip drafts, timeout-minutes, `types: [opened, synchronize, reopened, ready_for_review]`. Keep SHA pinning and `contents: read`. Update AGENTS.md CI sentence.
 
 **Review checkpoint 0.**
 
