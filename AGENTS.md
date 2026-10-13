@@ -9,9 +9,10 @@ file says *how* to work. If they conflict, stop and ask.
 This is the **FortiVPNTray fork**: a native macOS menu-bar client for
 [openfortivpn](https://github.com/adrienverge/openfortivpn) (password + SAML /
 Entra ID), with a root helper. Forked from `itstone/FortiVPNTray` v0.2.3, which
-derives from `walcew/openfortivpn-connect`. There is no upstream tracking: do
-not add an upstream remote, do not cherry-pick, do not open PRs against
-`itstone/FortiVPNTray` or `walcew/openfortivpn-connect`.
+derives from `walcew/openfortivpn-connect`. The fork point is the annotated tag
+`fork-point` (upstream v0.2.3, commit `8f9cc41`). There is no upstream
+tracking: do not add an upstream remote, do not cherry-pick, do not open PRs
+against `itstone/FortiVPNTray` or `walcew/openfortivpn-connect`.
 
 The GitHub repo is `DominykasVad/FortiVPNTray`. The fork's identity is
 `eu.dvad.fortivpntray` (helper `eu.dvad.fortivpntray.helper`); since task 0.1

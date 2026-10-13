@@ -99,6 +99,7 @@ Agent:
 - [x] **0.3** Remove `extraArgs`, decode-and-drop old profiles, tests (agent item 4).
 - [x] **0.4** Move the package to Swift 6: `swift-tools-version: 6.0`, Swift 6 language mode for all targets. Fix strict-concurrency errors without `@unchecked Sendable` / `nonisolated(unsafe)` unless each use has a comment saying why. No behaviour change; tests stay green.
 - [x] **0.5** CI: remove the release job, release-version check and artifact upload; keep tests + build + `codesign --verify`; add a general PR workflow (actionlint, file hygiene: valid YAML/JSON/plist, no merge-conflict markers, final newline, no trailing whitespace; >5 MiB guard; gitleaks on the PR commits; Markdown link check); pin all actions to commit SHAs; keep `permissions: contents: read`.
+- [ ] **0.6** Split CI like Lithica: `ci-general.yml` (from pr.yml; every PR + push to main, no path filter) and `ci-app.yml` (from native.yml; only on `native/**`, `helper/**`, its own file). Both: concurrency with cancel-in-progress, skip drafts, timeout-minutes, `types: [opened, synchronize, reopened, ready_for_review]`. Keep SHA pinning and `contents: read`. Update AGENTS.md CI sentence.
 
 **Review checkpoint 0.**
 
@@ -323,6 +324,7 @@ supersede it with a new one that names the old.
 - 2026-10-13 · — · Supersedes the previous line: no separate installer. The helper installer copies Homebrew's openfortivpn + dylibs into the root-owned dir on admin approval; the app detects Homebrew changes by set hash and offers Update; never bundled · root must not run user-writable files (F3), copying locally is not distribution, user decides on every update.
 - 2026-10-13 · 0.4 · Whole package on Swift 6 language mode before phase 2 · the new root helper is written in strict concurrency from the start instead of migrated later.
 - 2026-10-13 · 0.5 · No GitHub Releases from CI; CI only tests and builds · CI builds are ad-hoc signed and would run the helper in UID-only mode, and the fork is not distributed.
+- 2026-10-13 · 0.6 · Two workflows: general checks always, app build/tests only when native/ or helper/ change; no separate Rust workflow · build.sh compiles the helper into the app anyway, and the Rust helper is removed in 2.7.
 
 ## Open questions
 
