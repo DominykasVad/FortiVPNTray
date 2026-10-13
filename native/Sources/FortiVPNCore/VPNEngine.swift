@@ -4,7 +4,7 @@ import CryptoKit
 import Security
 import FortiVPNShared
 
-public struct PollResult {
+public struct PollResult: Sendable {
     public var lines: [String] = []
     public var events: [LogEvent] = []
     public var exitMessage: String?
@@ -160,7 +160,7 @@ public actor VPNEngine {
         var address = first.pointee.ai_addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }
         var output = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
         guard inet_ntop(AF_INET, &address, &output, socklen_t(output.count)) != nil else { return nil }
-        return String(cString: output)
+        return output.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
     }
     private static func interfaceBytes(ip: String) -> (UInt64, UInt64) {
         var start: UnsafeMutablePointer<ifaddrs>?
@@ -173,7 +173,7 @@ public actor VPNEngine {
             if let address = info.ifa_addr, Int32(address.pointee.sa_family) == AF_INET {
                 var value = address.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee.sin_addr }
                 var text = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
-                if inet_ntop(AF_INET, &value, &text, socklen_t(text.count)) != nil, String(cString: text) == ip,
+                if inet_ntop(AF_INET, &value, &text, socklen_t(text.count)) != nil, text.withUnsafeBufferPointer({ String(cString: $0.baseAddress!) }) == ip,
                    String(cString: info.ifa_name).hasPrefix("ppp") { name = String(cString: info.ifa_name) }
             }
             cursor = info.ifa_next
@@ -192,6 +192,8 @@ public actor VPNEngine {
     }
 }
 
+// @unchecked Sendable: URLSession calls the delegate on its own queue while `digest`
+// reads the result; `fingerprint` is the only mutable state and every access holds `lock`.
 private final class GatewayCertificate: NSObject, URLSessionDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private var fingerprint: String?

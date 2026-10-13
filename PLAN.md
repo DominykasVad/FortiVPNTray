@@ -97,7 +97,7 @@ Agent:
 - [x] **0.1** New identity `eu.dvad.fortivpntray` everywhere + `FortiVPNShared` target holding `AppIdentity` (agent item 1). Mechanical rename in its own commit, separate from the new target.
 - [x] **0.2** `build.sh` signing via `FVT_SIGN_IDENTITY` / `FVT_SIGN_KEYCHAIN`, ad-hoc warning; after signing, print the leaf SHA-1 read from the built app (`codesign -d --extract-certificates` + hash, or equivalent) so it can be compared with the identity; `docs/signing.md` (agent item 2).
 - [x] **0.3** Remove `extraArgs`, decode-and-drop old profiles, tests (agent item 4).
-- [ ] **0.4** Move the package to Swift 6: `swift-tools-version: 6.0`, Swift 6 language mode for all targets. Fix strict-concurrency errors without `@unchecked Sendable` / `nonisolated(unsafe)` unless each use has a comment saying why. No behaviour change; tests stay green.
+- [x] **0.4** Move the package to Swift 6: `swift-tools-version: 6.0`, Swift 6 language mode for all targets. Fix strict-concurrency errors without `@unchecked Sendable` / `nonisolated(unsafe)` unless each use has a comment saying why. No behaviour change; tests stay green.
 - [ ] **0.5** CI: remove the release job, release-version check and artifact upload; keep tests + build + `codesign --verify`; add a general PR workflow (actionlint, file hygiene: valid YAML/JSON/plist, no merge-conflict markers, final newline, no trailing whitespace; >5 MiB guard; gitleaks on the PR commits; Markdown link check); pin all actions to commit SHAs; keep `permissions: contents: read`.
 
 **Review checkpoint 0.**
