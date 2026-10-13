@@ -21,8 +21,9 @@ helper is safe even when a hostile process runs as the logged-in user.
 
 ## Status
 
-**Current phase: 0**, starting with 0.1. How to work (branches, commits,
-definition of done, hard rules): see `AGENTS.md`. Each phase ends with a
+**Current phase: 1**, starting with 1.1. Phase 0 is done (all tasks merged).
+How to work (branches, commits, definition of done, hard rules): see
+`AGENTS.md`. Each phase ends with a
 **task list**; one task = one sub-phase = one branch = one PR. Tick the box in
 the same commit as the change. Boxes marked *(maintainer)* are ticked by the
 maintainer only.
@@ -93,6 +94,9 @@ Agent:
    Decode-and-drop on load for old profiles.
 
 ### Tasks — phase 0
+<details>
+<summary>All 7 tasks done (0.0–0.6)</summary>
+
 - [x] **0.0** *(maintainer)* Signing identity created in its own keychain, leaf SHA-1 recorded (human steps 1–3).
 - [x] **0.1** New identity `eu.dvad.fortivpntray` everywhere + `FortiVPNShared` target holding `AppIdentity` (agent item 1). Mechanical rename in its own commit, separate from the new target.
 - [x] **0.2** `build.sh` signing via `FVT_SIGN_IDENTITY` / `FVT_SIGN_KEYCHAIN`, ad-hoc warning; after signing, print the leaf SHA-1 read from the built app (`codesign -d --extract-certificates` + hash, or equivalent) so it can be compared with the identity; `docs/signing.md` (agent item 2).
@@ -100,6 +104,8 @@ Agent:
 - [x] **0.4** Move the package to Swift 6: `swift-tools-version: 6.0`, Swift 6 language mode for all targets. Fix strict-concurrency errors without `@unchecked Sendable` / `nonisolated(unsafe)` unless each use has a comment saying why. No behaviour change; tests stay green.
 - [x] **0.5** CI: remove the release job, release-version check and artifact upload; keep tests + build + `codesign --verify`; add a general PR workflow (actionlint, file hygiene: valid YAML/JSON/plist, no merge-conflict markers, final newline, no trailing whitespace; >5 MiB guard; gitleaks on the PR commits; Markdown link check); pin all actions to commit SHAs; keep `permissions: contents: read`.
 - [x] **0.6** Split CI into two workflows: `ci-general.yml` (from pr.yml; every PR + push to main, no path filter) and `ci-app.yml` (from native.yml; only on `native/**`, `helper/**`, its own file). Both: concurrency with cancel-in-progress, skip drafts, timeout-minutes, `types: [opened, synchronize, reopened, ready_for_review]`. Keep SHA pinning and `contents: read`. Update AGENTS.md CI sentence.
+
+</details>
 
 **Review checkpoint 0.**
 
