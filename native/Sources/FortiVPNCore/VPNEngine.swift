@@ -2,6 +2,7 @@ import Foundation
 import Darwin
 import CryptoKit
 import Security
+import FortiVPNShared
 
 public struct PollResult {
     public var lines: [String] = []
@@ -50,9 +51,8 @@ public actor VPNEngine {
         gateway = Self.defaultGateway()
         serverIP = Self.resolveIPv4(profile.host)
         fallbackDNS = settings.dnsFallback ? Self.currentDNS() : []
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("eu.dvad.fortivpntray-\(UUID().uuidString).log")
-        // The legacy helper explicitly accepts only /tmp/eu.dvad.fortivpntray-* paths.
-        let helperURL = URL(fileURLWithPath: "/tmp/\(url.lastPathComponent)")
+        // The legacy helper explicitly accepts only paths with this prefix.
+        let helperURL = URL(fileURLWithPath: "\(AppIdentity.sessionLogPrefix)\(UUID().uuidString).log")
         let fd = open(helperURL.path, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, S_IRUSR | S_IWUSR)
         guard fd >= 0 else { throw VPNError("Could not create the private VPN log.") }
         close(fd)

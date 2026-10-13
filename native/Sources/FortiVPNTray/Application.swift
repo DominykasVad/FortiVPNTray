@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 import Combine
 import FortiVPNCore
+import FortiVPNShared
 
 @main
 @MainActor
