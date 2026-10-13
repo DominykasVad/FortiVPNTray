@@ -186,7 +186,7 @@ struct MainView: View {
             Text("Version \(appVersion) · Native Swift").foregroundStyle(Appearance.secondary)
             Text("Based on OpenFortiVpn Connect by Wallacy Santos Ferreira. VPN engine: openfortivpn.")
                 .font(.callout).multilineTextAlignment(.center).foregroundStyle(Appearance.secondary)
-            Link("View source on GitHub", destination: URL(string: "https://github.com/itstone/FortiVPNTray")!)
+            Link("View source on GitHub", destination: URL(string: "https://github.com/DominykasVad/FortiVPNTray")!)
             Spacer()
         }.padding(16)
     }
