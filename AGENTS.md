@@ -7,8 +7,8 @@ file says *how* to work. If they conflict, stop and ask.
 ## Project
 
 This is the **FortiVPNTray fork**: a native macOS menu-bar client for
-[openfortivpn](https://github.com/adrienverge/openfortivpn) (password + SAML /
-Entra ID), with a root helper. Forked from `itstone/FortiVPNTray` v0.2.3, which
+[openfortivpn](https://github.com/adrienverge/openfortivpn) (SAML / Entra ID),
+with a root helper. Forked from `itstone/FortiVPNTray` v0.2.3, which
 derives from `walcew/openfortivpn-connect`. The fork point is the annotated tag
 `fork-point` (upstream v0.2.3, commit `8f9cc41`). There is no upstream
 tracking: do not add an upstream remote, do not cherry-pick, do not open PRs
@@ -153,10 +153,9 @@ build dependencies without asking.
   children, routes, scutil keys). Never `killall`.
 
 ### Secrets and logs
-- Never log or persist passwords, `SVPNCOOKIE`, SAML URLs/tokens or Keychain
-  contents. Logs go through `LogParser` redaction before leaving the helper.
-- Passwords live in Keychain only, are read right before connect, sent once,
-  never put in argv or a file that outlives the connect.
+- Never log or persist `SVPNCOOKIE`, SAML URLs, SAML session ids or other tokens.
+  Logs go through `LogParser` redaction before leaving the helper.
+- There is no password authentication (PLAN.md decision log, 1.3); don't add any.
 - Never commit real gateway hostnames, IPs, certificate fingerprints, usernames
   or logs from the real network. Test fixtures use `vpn.example.com`,
   `192.0.2.0/24` / `198.51.100.0/24`, made-up fingerprints.

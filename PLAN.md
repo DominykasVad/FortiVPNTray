@@ -204,7 +204,7 @@ readLog(sessionID, offset) -> (lines, nextOffset)
 pendingSAMLURL() -> URL?            // helper parsed it; app opens the browser
 ```
 `ConnectRequest`: `host` (hostname/IPv4, no leading `-`/`.`), `port` (1–65535),
-`realm?` (`[A-Za-z0-9._-]{1,64}`), `auth` = `.saml(listenPort ≥1024, default 8020)`
+`realm?` (`[A-Za-z0-9._-]{1,63}`; S3: openfortivpn truncates at 63 silently), `auth` = `.saml(listenPort ≥1024, default 8020)`
 (SAML is the only auth method; there is no password case),
 `trustedCerts` (`^[0-9a-f]{64}$`, ≤16), `dnsFallback: [IPv4]` (≤4, only used if
 the tunnel provides no DNS). Reject anything else; one session at a time.
