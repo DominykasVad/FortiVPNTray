@@ -267,7 +267,9 @@ uses the exact log formats from `spikes/openfortivpn-config/FINDINGS.md`. No `/t
   SIGKILL on openfortivpn its pppd is reparented to launchd and `pgrep -P` no
   longer finds it. Never match pppd by name (F8). Remove the server host route;
   restore the default route only if it currently points at the session's ppp
-  iface; remove the DNS key; flush cache.
+  iface; remove the DNS key; flush the DNS cache with
+  `/usr/bin/dscacheutil -flushcache` and `/usr/bin/killall -HUP mDNSResponder`,
+  both via `Process` with argument arrays.
 - Every recorded PID (openfortivpn and pppd) is stored with its start time and
   executable path. Before signalling one, verify it is still the same process:
   compare the start time (`proc_pidinfo` / `PROC_PIDTBSDINFO`,
@@ -396,6 +398,7 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 2.4 · `pendingSAMLURL` is built by the helper from the validated request (`https://<host>:<port>/remote/saml/start?redirect=1[&realm=…]`) and offered only once the child printed exactly that URL; the URL is redacted from the log · nothing from the child's output reaches the browser, and SAML URLs are never logged.
 - 2026-10-14 · 2.4 · No on-disk log copy; the session log is in memory only · every file copy is another place unredacted output could end up; the in-memory log covers error reporting.
 - 2026-10-14 · 2.5 · DNS state is read and written through SystemConfiguration (`SCDynamicStore…`), not the `scutil` binary · typed API, nothing to parse, nothing to inject.
+- 2026-10-14 · 2.5 · Flush DNS cache with dscacheutil and SIGHUP to mDNSResponder · dscacheutil alone leaves mDNSResponder's cache, so internal names could resolve to stale VPN answers after disconnect; HUP only flushes, it does not stop the daemon.
 
 ## Open questions
 
