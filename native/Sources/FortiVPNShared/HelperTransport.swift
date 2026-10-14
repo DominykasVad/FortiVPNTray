@@ -20,10 +20,23 @@ public enum CallerCheckMode: String, Sendable, Equatable {
     public var title: String { self == .signed ? "Signed caller check" : "UID-only" }
 }
 
-/// What the helper exposes over XPC. Task 2.2 adds the tunnel calls.
+/// What the helper exposes over XPC (PLAN.md 2.2). Structured values travel as
+/// `HelperWire` JSON. Calls that can fail reply with an error message, which is
+/// nil on success. Everything a caller passes is validated by the helper.
 @objc public protocol HelperXPCProtocol {
     /// Replies with the helper version, the protocol version and the `CallerCheckMode` raw value.
     func version(reply: @escaping @Sendable (String, Int, String) -> Void)
+    /// `request` is a `ConnectRequest` as JSON. Replies with the new session id, or with an error.
+    /// Only one session runs at a time.
+    func connect(_ request: Data, reply: @escaping @Sendable (String?, String?) -> Void)
+    /// Ends the current session, if any. Replies with an error or nil.
+    func disconnect(reply: @escaping @Sendable (String?) -> Void)
+    /// Replies with a `HelperStatus` as JSON.
+    func status(reply: @escaping @Sendable (Data) -> Void)
+    /// Replies with a `LogChunk` as JSON for the current or last session, or with an error.
+    func readLog(sessionID: String, offset: Int, reply: @escaping @Sendable (Data?, String?) -> Void)
+    /// Replies with the SAML login URL the helper parsed from openfortivpn's output, if one is pending.
+    func pendingSAMLURL(reply: @escaping @Sendable (String?) -> Void)
 }
 
 /// The helper's launch arguments. They are written into the launchd plist at
@@ -56,9 +69,9 @@ public struct HelperLaunchArguments: Equatable, Sendable {
     public let allowedUID: uid_t
     public let callerCheck: CallerCheck
 
-    /// - Throws: `ParseError` if `leafSHA1` is not 40 hex digits.
+    /// - Throws: `ParseError` if `allowedUID` is 0 or `leafSHA1` is not 40 hex digits.
     public init(allowedUID: uid_t, callerCheck: CallerCheck) throws {
-        self.allowedUID = allowedUID
+        self.allowedUID = try Self.checkedUID(allowedUID)
         if case .signed(let hash) = callerCheck {
             self.callerCheck = .signed(leafSHA1: try Self.normalizedHash(hash))
         } else {
@@ -100,7 +113,7 @@ public struct HelperLaunchArguments: Equatable, Sendable {
                 guard !text.isEmpty, text.utf8.allSatisfy({ (48...57).contains($0) }), let parsed = uid_t(text) else {
                     throw ParseError("\(flag) is not a user id: \(text)")
                 }
-                uid = parsed
+                uid = try Self.checkedUID(parsed)
             case Self.leafFlag:
                 guard hash == nil else { throw ParseError("\(flag) given twice") }
                 hash = try Self.normalizedHash(try value(for: flag))
@@ -120,6 +133,13 @@ public struct HelperLaunchArguments: Equatable, Sendable {
         case (_?, true): throw ParseError("\(Self.leafFlag) and \(Self.uidOnlyFlag) exclude each other")
         }
         self.allowedUID = uid
+    }
+
+    /// The helper serves one logged-in user. Root never needs it, and a 0 here
+    /// most likely means the installer read the UID of `sudo` instead of the user's.
+    private static func checkedUID(_ uid: uid_t) throws -> uid_t {
+        guard uid != 0 else { throw ParseError("\(allowedUIDFlag) must not be 0 (root)") }
+        return uid
     }
 
     private static func normalizedHash(_ text: String) throws -> String {

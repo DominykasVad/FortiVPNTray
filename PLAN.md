@@ -211,8 +211,8 @@ pendingSAMLURL() -> URL?            // helper parsed it; app opens the browser
 `ConnectRequest`: `host` (hostname/IPv4, no leading `-`/`.`), `port` (1–65535),
 `realm?` (`[A-Za-z0-9._-]{1,63}`; S3: openfortivpn truncates at 63 silently), `auth` = `.saml(listenPort ≥1024, default 8020)`
 (SAML is the only auth method; there is no password case),
-`trustedCerts` (`^[0-9a-f]{64}$`, ≤16), `dnsFallback: [IPv4]` (≤4, only used if
-the tunnel provides no DNS). Reject anything else; one session at a time.
+`trustedCerts` (`^[0-9a-f]{64}$`, ≤16), `useSystemDNSFallback: Bool` (no DNS
+server addresses cross from the app). Reject anything else; one session at a time.
 
 ### 2.3 Spawning (F2, F3, F4)
 - Config file per session in `/Library/Application Support/<label>/run/`
@@ -254,7 +254,8 @@ the root-owned dir, file `0600`. No `/tmp` anywhere.
   server IP itself. Persists `{pid, iface, serverIP, gateway, dnsApplied}` to a
   root-owned state file (survives helper restart / sleep).
 - On "Tunnel is up": apply DNS via `scutil` from parsed `Found dns server/suffix`
-  lines; fallback list only if none parsed (existing `effectiveDNS` rule).
+  lines; if none parsed and `useSystemDNSFallback`, the helper uses the system
+  resolvers it read itself before connecting (`State:/Network/Global/DNS`).
 - Disconnect: SIGINT tracked pid → SIGKILL after 2 s; kill only pppd children of
   that pid (`pgrep -P`); remove the server host route; restore default route only
   if it currently points at the session's ppp iface; remove scutil key; flush cache.
@@ -273,7 +274,7 @@ it. Version check compares **protocol** version.
 ### Tasks — phase 2
 - [x] **2.0** Package layout: `FortiVPNShared` gets protocol types, validators, `LogParser`/`LogBuffer` (moves only, no behaviour change).
 - [x] **2.1** Transport + caller check.
-- [ ] **2.2** API + `ConnectRequest` validation, with tests for every rejection rule.
+- [x] **2.2** API + `ConnectRequest` validation, with tests for every rejection rule.
 - [ ] **2.3** Spawning: config writer, argv builder, binary/dylib ownership checks.
 - [ ] **2.4** Logs: ring buffer + redaction.
 - [ ] **2.5** DNS, routes, cleanup, state file.
@@ -360,6 +361,10 @@ supersede it with a new one that names the old.
 - 2026-10-13 · 1.3 · Password authentication dropped; SAML is the only auth method · the gateway uses SAML/Entra; removes Keychain handling, password transport to root and F9 entirely.
 - 2026-10-13 · 1.3 · Child argv is fixed (`-c <file> -v` + helper-chosen flags without a config key); host, port, realm, trusted certs etc. only in the validated config file · nothing caller-derived reaches argv; S3 showed -c fully replaces the default config.
 - 2026-10-13 · 2.1 · UID-only mode needs an explicit `--uid-only` launch argument; `--allowed-uid` without `--client-req-leaf` or `--uid-only` is an error · a damaged or hand-edited plist must not silently start the helper with the weaker caller check.
+- 2026-10-14 · 2.2 · Structured XPC values (`ConnectRequest`, `HelperStatus`, `LogChunk`) travel as JSON `Data`; the helper decodes strictly (unknown or missing keys, wrong types, over 16 KiB → rejected) and validation runs inside decoding · one parser for hostile input, no NSSecureCoding classes in root, and a decoded request is always a valid one.
+- 2026-10-14 · 2.2 · Trusted-cert fingerprints are lowercase only at the helper (`^[0-9a-f]{64}$`); the app lowercases before validating and sending · the helper applies the plan's rule as written and does no normalising of caller input.
+- 2026-10-14 · 2.2 · `--allowed-uid 0` is rejected by both the launch-argument builder and parser · the helper serves one logged-in user; a 0 most likely means the installer took the UID of `sudo`.
+- 2026-10-14 · 2.2 · No DNS server addresses cross from the app; ConnectRequest carries only `useSystemDNSFallback`, the helper reads the system resolvers itself · any caller-chosen resolver, however range-checked, would let a same-user attacker redirect all DNS while the tunnel is up (F7).
 
 ## Open questions
 
