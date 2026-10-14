@@ -12,13 +12,18 @@ public struct LogParser {
     private var certificateFailed = false
     private var reportedCertificates: Set<String> = []
     private var reportedURLs: Set<URL> = []
+    /// Gateway-pushed suffixes kept at most (decision log, 3.1 fix).
+    public static let maxDNSSuffixes = 16
     public init() {}
     public mutating func consume(_ line: String) -> [LogEvent] {
         var events: [LogEvent] = []
         if line.contains("ERROR:") { lastError = Self.redacted(line) }
         if let ip = Self.capture(#"Found dns server ([0-9.]+)"#, line), Validation.ipv4(ip), !dnsServers.contains(ip) { dnsServers.append(ip) }
-        if let suffixes = Self.capture(#"Found dns suffix ([^\s]+)"#, line) {
-            for suffix in suffixes.split(whereSeparator: { $0 == ";" || $0 == "," }).map(String.init) where Validation.hostname(suffix) && !dnsSuffixes.contains(suffix) {
+        // openfortivpn prints the gateway's whole `domain=` value (`http.c`), so a list of
+        // suffixes arrives in one line, separated by ';' (and possibly spaces).
+        if let suffixes = Self.capture(#"Found dns suffix (.*?)(?: in xml config)?$"#, line) {
+            for suffix in suffixes.split(whereSeparator: { $0 == ";" || $0 == "," || $0.isWhitespace }).map(String.init)
+            where dnsSuffixes.count < Self.maxDNSSuffixes && Validation.hostname(suffix) && !dnsSuffixes.contains(suffix) {
                 dnsSuffixes.append(suffix)
             }
         }
