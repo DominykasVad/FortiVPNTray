@@ -228,7 +228,119 @@ struct SessionControllerTests {
             try sessions.readLog(sessionID: UUID().uuidString, offset: 0)
         }
         sessions.disconnect()
-        #expect(try sessions.readLog(sessionID: id, offset: 5) == LogChunk(lines: [], nextOffset: 5))
+        // Past the end of the (empty) log: nothing, and where to continue.
+        #expect(try sessions.readLog(sessionID: id, offset: 5) == LogChunk(lines: [], nextOffset: 0))
         #expect(sessions.pendingSAMLURL() == nil)
+    }
+
+    @Test func testOutputIsKeptRedacted() throws {
+        let launcher = MockLauncher()
+        let sessions = SessionController(launcher: launcher)
+        let id = try sessions.connect(request)
+        launcher.send(.output("INFO:   Connected to gateway."), to: id)
+        launcher.send(.output("DEBUG:  Cookie: SVPNCOOKIE=4f1d0c9a8b7e6d5c"), to: id)
+        launcher.send(.output("DEBUG:  Using SAML authentication URL /remote/saml/auth_id?id=0123456789abcdef"), to: id)
+        #expect(try sessions.readLog(sessionID: id, offset: 0) == LogChunk(lines: [
+            "INFO:   Connected to gateway.",
+            "DEBUG:  Cookie: [redacted]",
+            "DEBUG:  Using SAML authentication URL [redacted]",
+        ], nextOffset: 3))
+        #expect(try sessions.readLog(sessionID: id, offset: 3) == LogChunk(lines: [], nextOffset: 3))
+    }
+
+    /// The child's last lines can arrive after its exit was reported (the pipe and
+    /// the termination handler are separate); they belong to the last session's log.
+    @Test func testLinesAfterTheChildExitedAreKeptForTheLastSession() throws {
+        let launcher = MockLauncher()
+        let sessions = SessionController(launcher: launcher)
+        let id = try sessions.connect(request)
+        launcher.send(.output("INFO:   Connected to gateway."), to: id)
+        launcher.send(.exited(.status(1)), to: id)
+        launcher.send(.output("ERROR:  Could not authenticate to gateway. Please check the password, client certificate, etc."), to: id)
+        launcher.send(.output("INFO:   Closed connection to gateway."), to: id)
+        #expect(sessions.status() == HelperStatus(lastError: "openfortivpn exited with status 1."))
+        #expect(try sessions.readLog(sessionID: id, offset: 0).lines == [
+            "INFO:   Connected to gateway.",
+            "ERROR:  Could not authenticate to gateway. Please check the password, client certificate, etc.",
+            "INFO:   Closed connection to gateway.",
+        ])
+    }
+
+    @Test func testLinesAfterADisconnectAreKeptForTheLastSession() throws {
+        let launcher = MockLauncher()
+        let sessions = SessionController(launcher: launcher)
+        let id = try sessions.connect(request)
+        sessions.disconnect()
+        launcher.send(.output("INFO:   Terminated."), to: id)
+        #expect(try sessions.readLog(sessionID: id, offset: 0).lines == ["INFO:   Terminated."])
+    }
+
+    @Test func testANewSessionReplacesTheLogAndDropsTheOldOnesLateLines() throws {
+        let launcher = MockLauncher()
+        let sessions = SessionController(launcher: launcher)
+        let first = try sessions.connect(request)
+        launcher.send(.output("first"), to: first)
+        sessions.disconnect()
+        let second = try sessions.connect(request)
+        launcher.send(.output("late line of the first session"), to: first)
+        launcher.send(.output("second"), to: second)
+        #expect(throws: SessionController.Refusal(description: "Unknown session.")) { try sessions.readLog(sessionID: first, offset: 0) }
+        #expect(try sessions.readLog(sessionID: second, offset: 0).lines == ["second"])
+    }
+
+    @Test func testSAMLStartURLMatchesOpenFortiVPN() throws {
+        #expect(SessionController.samlStartURL(for: request) == "https://vpn.example.com:443/remote/saml/start?redirect=1")
+        let realm = try ConnectRequest(host: "192.0.2.10", port: 10443, realm: "Staff_VPN-1.x")
+        #expect(SessionController.samlStartURL(for: realm) == "https://192.0.2.10:10443/remote/saml/start?redirect=1&realm=Staff_VPN-1.x")
+    }
+
+    @Test func testPendingSAMLURLOnlyOnceTheChildPrintedExactlyIt() throws {
+        let launcher = MockLauncher()
+        let sessions = SessionController(launcher: launcher)
+        let request = try ConnectRequest(host: "vpn.example.com", port: 443, realm: "staff")
+        let id = try sessions.connect(request)
+        #expect(sessions.pendingSAMLURL() == nil)
+        // Anything other than the URL built from the request is not offered.
+        for line in [
+            "INFO:   Authenticate at 'https://attacker.example.net:443/remote/saml/start?redirect=1&realm=staff'",
+            "INFO:   Authenticate at 'https://vpn.example.com:443/remote/saml/start?redirect=1&realm=staff&x=1'",
+            "INFO:   Authenticate at 'https://vpn.example.com:443/remote/saml/start?redirect=1'",
+            "DEBUG:  Authenticate at 'https://vpn.example.com:443/remote/saml/start?redirect=1&realm=staff'",
+        ] {
+            launcher.send(.output(line), to: id)
+            #expect(sessions.pendingSAMLURL() == nil, "\(line)")
+        }
+        launcher.send(.output("INFO:   Authenticate at 'https://vpn.example.com:443/remote/saml/start?redirect=1&realm=staff'"), to: id)
+        #expect(sessions.pendingSAMLURL() == URL(string: "https://vpn.example.com:443/remote/saml/start?redirect=1&realm=staff"))
+        // The log has the line, without the URL.
+        #expect(try sessions.readLog(sessionID: id, offset: 0).lines.last == "INFO:   Authenticate at '[redacted]")
+        launcher.send(.tunnelUp, to: id)
+        #expect(sessions.pendingSAMLURL() == nil)
+    }
+
+    @Test func testPendingSAMLURLEndsWithTheSession() throws {
+        let launcher = MockLauncher()
+        let sessions = SessionController(launcher: launcher)
+        let id = try sessions.connect(request)
+        launcher.send(.output("INFO:   Authenticate at 'https://vpn.example.com:443/remote/saml/start?redirect=1'"), to: id)
+        #expect(sessions.pendingSAMLURL() != nil)
+        sessions.disconnect()
+        #expect(sessions.pendingSAMLURL() == nil)
+    }
+
+    @Test func testNoPendingSAMLURLWhileDisconnecting() throws {
+        let launcher = MockLauncher(holdsStart: true)
+        let sessions = SessionController(launcher: launcher)
+        let request = request
+        let connect = onThread { Self.attempt { try sessions.connect(request) } }
+        #expect(launcher.waitUntilStartEntered())
+        let id = try #require(sessions.status().sessionID)
+        launcher.send(.output("INFO:   Authenticate at 'https://vpn.example.com:443/remote/saml/start?redirect=1'"), to: id)
+        #expect(sessions.pendingSAMLURL() != nil)
+        sessions.disconnect()
+        #expect(sessions.status().state == .disconnecting)
+        #expect(sessions.pendingSAMLURL() == nil)
+        launcher.releaseStart()
+        _ = connect()
     }
 }

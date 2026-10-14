@@ -41,9 +41,23 @@ public struct LogParser {
         // Never mix public resolvers into a VPN-provided split-DNS configuration.
         dnsServers.isEmpty ? fallback : dnsServers
     }
+    /// Secrets that run to the end of the line. openfortivpn `-v` prints
+    /// `Cookie: SVPNCOOKIE=…` and `Using SAML authentication URL /remote/saml/auth_id?id=…`
+    /// (spikes/openfortivpn-config/FINDINGS.md, section 3); a cookie can carry further
+    /// `; name=value` parts, so everything after the prefix goes.
+    private static let restOfLine: [(pattern: String, template: String)] = [
+        (#"(?i)(cookie\s*:).*"#, "$1 [redacted]"),
+        (#"(?i)(SVPNCOOKIE).*"#, "$1=[redacted]"),
+        (#"(?i)(SAML authentication URL).*"#, "$1 [redacted]"),
+        (#"(?i)(/remote/saml/auth_id).*"#, "$1 [redacted]"),
+    ]
+
     public static func redacted(_ line: String) -> String {
         var text = line
-        for pattern in [#"(?i)(password|passwd|cookie|authorization|token|SAMLResponse)\s*[:=]\s*\S+"#, #"https?://[^\s]+"#] {
+        for rule in restOfLine {
+            text = text.replacingOccurrences(of: rule.pattern, with: rule.template, options: .regularExpression)
+        }
+        for pattern in [#"(?i)(password|passwd|cookie|authorization|token|SAMLResponse)\s*[:=]\s*(?!\[redacted\])\S+"#, #"https?://[^\s]+"#] {
             text = text.replacingOccurrences(of: pattern, with: "[redacted]", options: .regularExpression)
         }
         return text
