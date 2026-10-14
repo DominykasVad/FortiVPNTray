@@ -246,31 +246,48 @@ Helper keeps an in-memory ring buffer per session (redacted with `LogParser.reda
 served via `readLog`. Redaction must cover the two secrets `-v` prints (S3): the
 session cookie (`Cookie: SVPNCOOKIE=…`, the whole rest of the line) and the SAML
 session id (`Using SAML authentication URL /remote/saml/auth_id?id=…`). A test
-uses the exact log formats from `spikes/openfortivpn-config/FINDINGS.md`. Optional on-disk copy only in
-the root-owned dir, file `0600`. No `/tmp` anywhere.
+uses the exact log formats from `spikes/openfortivpn-config/FINDINGS.md`. No `/tmp` anywhere.
 
 ### 2.5 DNS, routes, cleanup (F6, F7, F8)
 - Helper records original default gateway (`route -n get default`) and resolves
-  server IP itself. Persists `{pid, iface, serverIP, gateway, dnsApplied}` to a
-  root-owned state file (survives helper restart / sleep).
-- On "Tunnel is up": apply DNS via `scutil` from parsed `Found dns server/suffix`
+  server IP itself. Persists `{pid, iface, serverIP, gateway, dnsApplied}`, the
+  pppd PID and each PID's identity (below) to a root-owned state file (survives
+  helper restart / sleep).
+- DNS through SystemConfiguration (`SCDynamicStoreCopyValue` / `SetValue` /
+  `RemoveValue`), not the `scutil` binary: typed API, nothing to parse, nothing
+  to inject. On "Tunnel is up": apply DNS from parsed `Found dns server/suffix`
   lines; if none parsed and `useSystemDNSFallback`, the helper uses the system
   resolvers it read itself before connecting (`State:/Network/Global/DNS`).
+- Routes: `/sbin/route` via `Process` with an argument array, values only from
+  validated sources (resolved server IPv4, recorded gateway, ppp iface name
+  matching `^ppp[0-9]+$`).
 - Disconnect: SIGINT tracked pid → SIGKILL after 2 s; record pppd's PID (child of
   the tracked openfortivpn) while openfortivpn is still alive and persist it in the
   state file; on disconnect stop that recorded pppd explicitly, because after
   SIGKILL on openfortivpn its pppd is reparented to launchd and `pgrep -P` no
   longer finds it. Never match pppd by name (F8). Remove the server host route;
-  restore default route only if it currently points at the session's ppp iface;
-  remove scutil key; flush cache.
+  restore the default route only if it currently points at the session's ppp
+  iface; remove the DNS key; flush the DNS cache with
+  `/usr/bin/dscacheutil -flushcache` and `/usr/bin/killall -HUP mDNSResponder`,
+  both via `Process` with argument arrays.
 - Every recorded PID (openfortivpn and pppd) is stored with its start time and
   executable path. Before signalling one, verify it is still the same process:
   compare the start time (`proc_pidinfo` / `PROC_PIDTBSDINFO`,
   `pbi_start_tvsec` + `pbi_start_tvusec`) and the executable path. Mismatch →
   don't signal, just clear the state. Test with a recorded PID whose process has
   exited.
-- Child exits unexpectedly → same cleanup automatically (helper notices, not the app).
-- Pre-connect orphan sweep uses only the persisted state file.
+- Cleanup runs on every exit path: disconnect, child exits unexpectedly (helper
+  notices, not the app), helper restart. Every step is idempotent and
+  independent, so one failure doesn't skip the rest.
+- State file: in a root-owned dir, written atomically (temp file
+  `O_CREAT|O_EXCL|O_NOFOLLOW`, then `rename`), strict JSON decode, size limit.
+  Unreadable or invalid state → log, do nothing destructive.
+- Orphan sweep at helper start and before connect uses only the state file and
+  the identity check above.
+- Tests: every system call (signals, process info, routes, SystemConfiguration)
+  is behind a protocol with a fake; unit tests never touch the real network,
+  routes or DNS. Real behaviour (sleep/wake, stale routes, other pppd untouched)
+  is checked in phase 4.
 
 ### 2.6 Installer
 Extend `HelperInstaller` (`Helper.swift`): single admin prompt that `install`s the
@@ -287,7 +304,7 @@ it. Version check compares **protocol** version.
 - [x] **2.2** API + `ConnectRequest` validation, with tests for every rejection rule.
 - [x] **2.3** Spawning: config writer, argv builder, binary/dylib ownership checks.
 - [x] **2.4** Logs: ring buffer + redaction.
-- [ ] **2.5** DNS, routes, cleanup, state file.
+- [x] **2.5** DNS, routes, cleanup, state file.
 - [ ] **2.6** Installer / uninstaller.
 - [ ] **2.7** Delete `helper/` (Rust), its CI step and build steps.
 
@@ -345,10 +362,13 @@ Manual, maintainer on the Mac (report pass/fail):
 7b. Upgrade only the OpenSSL formula openfortivpn links (currently `openssl@4`, found via `otool -L`) → app detects the change.
 8. Built-in L2TP/other pppd untouched by disconnect.
 9. Rebuild + reinstall app with same identity → helper still accepts it.
+10. Kill openfortivpn with SIGKILL while connected (`sudo kill -9 <pid>`) → after the helper's
+    cleanup the Mac still has a working default route and DNS (ping, name lookup). If not,
+    record what macOS did and open a fix task.
 
 ### Tasks — phase 4
 - [ ] **4.1** Unit tests listed above.
-- [ ] **4.2** *(maintainer)* Manual checklist 1–9, results recorded here.
+- [ ] **4.2** *(maintainer)* Manual checklist 1–10, results recorded here.
 
 **Review checkpoint 4.**
 
@@ -379,6 +399,12 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 2.3 · A disconnect while the launcher's start is still running is recorded and acted on when start returns; the launcher's stop never runs alongside its start · the child may be spawned before its PID is recorded, and only after start returns can stop reach it, so it is never left running.
 - 2026-10-14 · 2.4 · The session log belongs to the session id and is kept until the next connect, independent of the session state; output after the child's exit or a disconnect is still stored · the child's last lines (usually the reason it failed) can arrive after its exit is reported, and `readLog` of the last session must show them.
 - 2026-10-14 · 2.4 · `pendingSAMLURL` is built by the helper from the validated request (`https://<host>:<port>/remote/saml/start?redirect=1[&realm=…]`) and offered only once the child printed exactly that URL; the URL is redacted from the log · nothing from the child's output reaches the browser, and SAML URLs are never logged.
+- 2026-10-14 · 2.4 · No on-disk log copy; the session log is in memory only · every file copy is another place unredacted output could end up; the in-memory log covers error reporting.
+- 2026-10-14 · 2.5 · DNS state is read and written through SystemConfiguration (`SCDynamicStore…`), not the `scutil` binary · typed API, nothing to parse, nothing to inject.
+- 2026-10-14 · 2.5 · Flush DNS cache with dscacheutil and SIGHUP to mDNSResponder · dscacheutil alone leaves mDNSResponder's cache, so internal names could resolve to stale VPN answers after disconnect; HUP only flushes, it does not stop the daemon.
+- 2026-10-14 · 2.5 · The default route is restored only while the recorded pppd is still the same running process, besides pointing at the session's ppp interface · once that pppd is gone its interface name can belong to another VPN's pppd, whose default route must stay untouched.
+- 2026-10-14 · 2.5 · A recorded PID that fails the identity check is skipped; the other cleanup steps still run and the state is removed afterwards · a stale host route and the DNS key are exactly what a crashed session leaves, and they are removed by validated value, not by PID.
+- 2026-10-14 · 2.5 · Connect is refused if the state file cannot be saved, and it is saved before openfortivpn is started · without it a helper crash would leave routes and DNS nothing can undo.
 
 ## Open questions
 

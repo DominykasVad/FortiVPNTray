@@ -34,11 +34,18 @@ final class FakeInstall {
         try? FileManager.default.removeItem(atPath: root)
     }
 
+    /// Keeps the fake running until a signal ends it. Like openfortivpn it never
+    /// execs another program, so its executable, and with it its recorded identity,
+    /// stays the same; SIGINT ends it by that signal (once the current short sleep returns).
+    static let runUntilSignalled = "trap 'trap - INT; kill -INT $$' INT\nwhile :; do /bin/sleep 0.1; done"
+
     /// A fake openfortivpn that records its argv, environment and config file, then
-    /// behaves as `then` says (shell lines, run after the report is written).
-    static func script(then: String = "echo 'INFO:   Tunnel is up and running.'\nexec /bin/sleep 30") -> String {
+    /// behaves as `then` says (shell lines, run after the report is written). It is a
+    /// bash script: `/bin/sh` on macOS execs the selected shell, which would change
+    /// the executable after the launcher recorded it.
+    static func script(then: String = "echo 'INFO:   Tunnel is up and running.'\n" + runUntilSignalled) -> String {
         """
-        #!/bin/sh
+        #!/bin/bash
         {
           for arg in "$@"; do printf 'arg:%s\\n' "$arg"; done
           /usr/bin/env | /usr/bin/sort | /usr/bin/sed 's/^/env:/'

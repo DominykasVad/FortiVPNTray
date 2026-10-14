@@ -151,6 +151,8 @@ build dependencies without asking.
   interpolation into a shell.
 - Only kill/clean up what the helper itself started and recorded (PIDs, pppd
   children, routes, scutil keys). Never `killall`.
+- Only exception to "never `killall`": SIGHUP to mDNSResponder to flush the DNS
+  cache; no other signal, no other process.
 
 ### Secrets and logs
 - Never log or persist `SVPNCOOKIE`, SAML URLs, SAML session ids or other tokens.

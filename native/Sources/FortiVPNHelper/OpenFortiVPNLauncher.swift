@@ -20,6 +20,8 @@ final class OpenFortiVPNLauncher: TunnelLauncher, @unchecked Sendable {
         let sessionID: String
         let process: Process
         let configName: String
+        /// Nil if the child had already exited when it was recorded.
+        let identity: ProcessIdentity?
     }
 
     /// openfortivpn's log line once the tunnel is up (`tunnel.c`).
@@ -29,15 +31,17 @@ final class OpenFortiVPNLauncher: TunnelLauncher, @unchecked Sendable {
 
     let install: OpenFortiVPNInstall
     let runDirectory: RunDirectory
+    let processes: any ProcessTable
     /// Test hook: called after the child is spawned and before it is recorded.
     private let spawned: (@Sendable (pid_t) -> Void)?
     private let lock = NSLock()
     private var child: Child?
 
     init(install: OpenFortiVPNInstall = .production, runDirectory: RunDirectory = .production,
-         spawned: (@Sendable (pid_t) -> Void)? = nil) {
+         processes: any ProcessTable = SystemProcessTable(), spawned: (@Sendable (pid_t) -> Void)? = nil) {
         self.install = install
         self.runDirectory = runDirectory
+        self.processes = processes
         self.spawned = spawned
     }
 
@@ -56,7 +60,8 @@ final class OpenFortiVPNLauncher: TunnelLauncher, @unchecked Sendable {
         ]
     }
 
-    func start(_ request: ConnectRequest, sessionID: String, onEvent: @escaping @Sendable (TunnelEvent) -> Void) throws {
+    @discardableResult
+    func start(_ request: ConnectRequest, sessionID: String, onEvent: @escaping @Sendable (TunnelEvent) -> Void) throws -> ProcessIdentity? {
         guard locked({ child == nil }) else { throw Failure(description: "openfortivpn is already running.") }
         guard UUID(uuidString: sessionID) != nil else { throw Failure(description: "Bad session id.") }
         try install.verify()
@@ -107,28 +112,34 @@ final class OpenFortiVPNLauncher: TunnelLauncher, @unchecked Sendable {
             throw Failure(description: "Cannot start openfortivpn: \(error.localizedDescription)")
         }
         spawned?(process.processIdentifier)
-        locked { child = Child(sessionID: sessionID, process: process, configName: configName) }
+        // posix_spawn has returned, so the child already runs the binary: this is its identity.
+        let identity = processes.identity(of: process.processIdentifier)
+        locked { child = Child(sessionID: sessionID, process: process, configName: configName, identity: identity) }
         // A child that already exited may have been reaped before it was recorded; its
         // termination handler then found nothing to forget.
         if !process.isRunning { forget(process) }
+        return identity
     }
 
     /// SIGINT to the recorded child, SIGKILL if it is still running after `stopGrace`.
-    /// Only the process this launcher started is signalled, and only while it has not been reaped.
+    /// Only the process this launcher started is signalled, and only while it is still
+    /// that process (same start time and executable, PLAN.md 2.5).
+    ///
+    /// Known, accepted limit of Foundation's Process: the child can exit and be reaped
+    /// between the identity check and kill(), and its PID could in theory be reused by
+    /// then. Process offers no way to signal it that excludes this (no pidfd on macOS,
+    /// and Process reaps the child itself), so the window stays this short.
     func stop(sessionID: String) {
         guard let child = locked({ child }), child.sessionID == sessionID else { return }
-        let process = child.process
-        // Known, accepted limit of Foundation's Process: the child can exit and be reaped
-        // between the isRunning check and kill(), and its PID could in theory be reused
-        // by then. Process offers no way to signal it that excludes this (no pidfd on
-        // macOS, and Process reaps the child itself), so the window stays this short.
-        for signal in [SIGINT, SIGKILL] where process.isRunning {
-            kill(process.processIdentifier, signal)
-            let deadline = Date().addingTimeInterval(Self.stopGrace)
-            while process.isRunning && Date() < deadline { usleep(20_000) }
+        if let identity = child.identity {
+            processes.stop(identity, first: SIGINT, grace: Self.stopGrace)
         }
+        // A dead child is a zombie until Process reaps it; return only once it is reaped,
+        // so "stopped" means its PID is gone.
+        let deadline = Date().addingTimeInterval(Self.stopGrace)
+        while child.process.isRunning && Date() < deadline { usleep(20_000) }
         runDirectory.remove(child.configName)
-        forget(process)
+        forget(child.process)
     }
 
     private func forget(_ process: Process) {

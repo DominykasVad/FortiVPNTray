@@ -18,7 +18,13 @@ do {
     log.fault("Refusing to start: \(String(describing: error), privacy: .public)")
     exit(EX_USAGE)
 }
-guard let callerCheck = CallerCheck(arguments: launchArguments, sessions: SessionController(launcher: OpenFortiVPNLauncher())) else {
+let processes = SystemProcessTable()
+let sessions = SessionController(launcher: OpenFortiVPNLauncher(processes: processes),
+                                 cleanup: TunnelCleanup(processes: processes, network: SystemNetwork()),
+                                 store: .production)
+// Undo whatever a session of an earlier run left behind (crash, sleep, restart) before serving anyone.
+sessions.sweep()
+guard let callerCheck = CallerCheck(arguments: launchArguments, sessions: sessions) else {
     log.fault("Refusing to start: the caller requirement could not be built")
     exit(EX_USAGE)
 }

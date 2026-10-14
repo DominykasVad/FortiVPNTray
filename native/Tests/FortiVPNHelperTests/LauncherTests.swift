@@ -151,7 +151,7 @@ struct LauncherTests {
     }
 
     @Test func testStopEscalatesToSIGKILL() throws {
-        let fake = try FakeInstall(script: FakeInstall.script(then: "trap '' INT\nexec /bin/sleep 30"))
+        let fake = try FakeInstall(script: FakeInstall.script(then: "trap '' INT\nwhile :; do /bin/sleep 0.1; done"))
         let pid = Box<pid_t>()
         let launcher = OpenFortiVPNLauncher(install: fake.install, runDirectory: fake.runDirectory, spawned: { pid.value = $0 })
         let events = Events()
@@ -163,6 +163,34 @@ struct LauncherTests {
         #expect(Date().timeIntervalSince(began) >= OpenFortiVPNLauncher.stopGrace - 0.1)
         #expect(!isAlive(try #require(pid.value)))
         #expect(eventually { events.all.last == .exited(.signal(SIGKILL)) })
+    }
+
+    @Test func testStartReturnsTheChildsIdentity() throws {
+        let fake = try FakeInstall()
+        let pid = Box<pid_t>()
+        let launcher = OpenFortiVPNLauncher(install: fake.install, runDirectory: fake.runDirectory, spawned: { pid.value = $0 })
+        let id = UUID().uuidString
+        let identity = try #require(try launcher.start(try ConnectRequest(host: "vpn.example.com", port: 443), sessionID: id) { _ in })
+        defer { launcher.stop(sessionID: id) }
+        #expect(identity.pid == pid.value)
+        #expect(identity.executable == "/bin/bash", "the fake openfortivpn is a bash script")
+        #expect(SystemProcessTable().isRunning(identity))
+    }
+
+    /// A child that is no longer the recorded process (here: it exec'd another program)
+    /// is not signalled.
+    @Test func testStopDoesNotSignalAChildThatIsNoLongerTheRecordedProcess() throws {
+        let fake = try FakeInstall(script: FakeInstall.script(then: "/bin/sleep 0.3\nexec /bin/sleep 5"))
+        let pid = Box<pid_t>()
+        let launcher = OpenFortiVPNLauncher(install: fake.install, runDirectory: fake.runDirectory, spawned: { pid.value = $0 })
+        let id = UUID().uuidString
+        let identity = try #require(try launcher.start(try ConnectRequest(host: "vpn.example.com", port: 443), sessionID: id) { _ in })
+        let child = try #require(pid.value)
+        defer { kill(child, SIGKILL) }
+        #expect(eventually { SystemProcessTable().identity(of: child)?.executable == "/bin/sleep" })
+        launcher.stop(sessionID: id)
+        #expect(isAlive(child), "not signalled: start time is the same, the executable is not")
+        #expect(!SystemProcessTable().isRunning(identity))
     }
 
     @Test func testStopIgnoresOtherSessions() throws {
@@ -266,7 +294,7 @@ struct LauncherTests {
     @Test func testPendingSAMLURLFromARealChild() throws {
         let fake = try FakeInstall(script: FakeInstall.script(then: """
         echo "INFO:   Authenticate at 'https://vpn.example.com:10443/remote/saml/start?redirect=1&realm=staff'"
-        exec /bin/sleep 30
+        \(FakeInstall.runUntilSignalled)
         """))
         let launcher = OpenFortiVPNLauncher(install: fake.install, runDirectory: fake.runDirectory)
         let sessions = SessionController(launcher: launcher)
