@@ -45,10 +45,12 @@ public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
         var result = self
         result.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         result.host = host.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !result.name.isEmpty, Validation.hostname(result.host), (1...65535).contains(port) else {
+        // The helper accepts lowercase fingerprints only; stored or pasted uppercase ones are normalised here.
+        result.trustedCerts = trustedCerts.map { $0.lowercased() }
+        guard !result.name.isEmpty, Validation.host(result.host), (1...65535).contains(port) else {
             throw VPNError("Enter a name, a hostname or IPv4 address, and a port between 1 and 65535.")
         }
-        guard !id.isEmpty, trustedCerts.allSatisfy(Validation.digest) else {
+        guard !id.isEmpty, result.trustedCerts.allSatisfy(Validation.digest) else {
             throw VPNError("Each trusted certificate must be a 64-character SHA256 fingerprint.")
         }
         return result
@@ -63,7 +65,7 @@ public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
             guard let password, !password.isEmpty else { throw VPNError("Save a password in the profile before connecting.") }
             args += ["-u", user, "-p", password]
         } else { args += ["--saml-login"] }
-        args += trustedCerts.map { "--trusted-cert=\($0)" }
+        args += p.trustedCerts.map { "--trusted-cert=\($0)" }
         if let realm, !realm.isEmpty { args += ["--realm=\(realm)"] }
         args += ["--set-dns=0", "--pppd-use-peerdns=0", "-v"]
         return args

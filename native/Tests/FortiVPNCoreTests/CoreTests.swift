@@ -90,6 +90,16 @@ struct CoreTests {
         }
         var p = profile(); p.port = 65536; expectThrows(try p.validated())
         p.port = 0; expectThrows(try p.validated())
+        for host in ["010.0.0.1", "vpn-.example.com", "vpn..example.com"] {
+            var p = profile(); p.host = host; expectThrows(try p.validated())
+        }
+        p = profile(); p.host = "192.0.2.1"; expectNoThrow(try p.validated())
+    }
+    @Test func testProfileTrustedCertsAreLowercased() throws {
+        // The helper only accepts lowercase fingerprints; saved or pasted uppercase ones keep working.
+        var p = profile(); p.trustedCerts = [String(repeating: "AB", count: 32)]
+        expectEqual(try p.validated().trustedCerts, [String(repeating: "ab", count: 32)])
+        expectTrue(try p.arguments(password: "secret").contains("--trusted-cert=" + String(repeating: "ab", count: 32)))
     }
     @Test func testPasswordArgumentsRequireCredentials() throws {
         var p = profile()
