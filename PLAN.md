@@ -276,7 +276,7 @@ it. Version check compares **protocol** version.
 - [x] **2.1** Transport + caller check.
 - [x] **2.2** API + `ConnectRequest` validation, with tests for every rejection rule.
 - [x] **2.3** Spawning: config writer, argv builder, binary/dylib ownership checks.
-- [ ] **2.4** Logs: ring buffer + redaction.
+- [x] **2.4** Logs: ring buffer + redaction.
 - [ ] **2.5** DNS, routes, cleanup, state file.
 - [ ] **2.6** Installer / uninstaller.
 - [ ] **2.7** Delete `helper/` (Rust), its CI step and build steps.
@@ -367,6 +367,8 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 2.2 · No DNS server addresses cross from the app; ConnectRequest carries only `useSystemDNSFallback`, the helper reads the system resolvers itself · any caller-chosen resolver, however range-checked, would let a same-user attacker redirect all DNS while the tunnel is up (F7).
 - 2026-10-14 · 2.3 · Child SSL_CERT_DIR = empty root-owned <label>.d/certs, checked before spawn · Homebrew OpenSSL's compiled-in certs dir is user-writable and is consulted during gateway verification even with SSL_CERT_FILE set; a CA dropped there would make a forged gateway cert pass.
 - 2026-10-14 · 2.3 · A disconnect while the launcher's start is still running is recorded and acted on when start returns; the launcher's stop never runs alongside its start · the child may be spawned before its PID is recorded, and only after start returns can stop reach it, so it is never left running.
+- 2026-10-14 · 2.4 · The session log belongs to the session id and is kept until the next connect, independent of the session state; output after the child's exit or a disconnect is still stored · the child's last lines (usually the reason it failed) can arrive after its exit is reported, and `readLog` of the last session must show them.
+- 2026-10-14 · 2.4 · `pendingSAMLURL` is built by the helper from the validated request (`https://<host>:<port>/remote/saml/start?redirect=1[&realm=…]`) and offered only once the child printed exactly that URL; the URL is redacted from the log · nothing from the child's output reaches the browser, and SAML URLs are never logged.
 
 ## Open questions
 

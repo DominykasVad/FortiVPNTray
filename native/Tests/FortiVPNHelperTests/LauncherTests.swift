@@ -235,6 +235,48 @@ struct LauncherTests {
         #expect(fake.configFiles().isEmpty)
     }
 
+    /// A real child whose last lines arrive after its exit: a background job keeps the
+    /// pipe open and writes once the child is gone, and the final line has no newline.
+    /// `readLog` of the last session shows them, redacted.
+    @Test func testTheChildsFinalLinesReachTheLastSessionsLog() throws {
+        let fake = try FakeInstall(script: FakeInstall.script(then: """
+        /bin/sleep 1
+        echo 'DEBUG:  Cookie: SVPNCOOKIE=4f1d0c9a8b7e6d5c4b3a2918'
+        echo 'ERROR:  Could not authenticate to gateway.'
+        ( /bin/sleep 1; echo 'INFO:   Closed connection to gateway.'; printf 'INFO:   Logged out.' ) &
+        exit 1
+        """))
+        let sessions = SessionController(launcher: OpenFortiVPNLauncher(install: fake.install, runDirectory: fake.runDirectory))
+        // The child waits a second before failing, so connect returns the id first.
+        let id = try sessions.connect(try ConnectRequest(host: "vpn.example.com", port: 443))
+        #expect(eventually { sessions.status() == HelperStatus(lastError: "openfortivpn exited with status 1.") })
+        #expect(try sessions.readLog(sessionID: id, offset: 0).lines.contains("INFO:   Logged out.") == false,
+                "the background job has not written yet when the exit is seen")
+        let expected = [
+            "INFO:   Connected to gateway.",
+            "DEBUG:  Cookie: [redacted]",
+            "ERROR:  Could not authenticate to gateway.",
+            "INFO:   Closed connection to gateway.",
+            "INFO:   Logged out.",
+        ]
+        #expect(eventually { (try? sessions.readLog(sessionID: id, offset: 0).lines) == expected },
+                "\(String(describing: try? sessions.readLog(sessionID: id, offset: 0).lines))")
+    }
+
+    @Test func testPendingSAMLURLFromARealChild() throws {
+        let fake = try FakeInstall(script: FakeInstall.script(then: """
+        echo "INFO:   Authenticate at 'https://vpn.example.com:10443/remote/saml/start?redirect=1&realm=staff'"
+        exec /bin/sleep 30
+        """))
+        let launcher = OpenFortiVPNLauncher(install: fake.install, runDirectory: fake.runDirectory)
+        let sessions = SessionController(launcher: launcher)
+        let id = try sessions.connect(try ConnectRequest(host: "vpn.example.com", port: 10443, realm: "staff"))
+        #expect(eventually { sessions.pendingSAMLURL() == URL(string: "https://vpn.example.com:10443/remote/saml/start?redirect=1&realm=staff") })
+        #expect(try sessions.readLog(sessionID: id, offset: 0).lines.last == "INFO:   Authenticate at '[redacted]")
+        sessions.disconnect()
+        #expect(sessions.pendingSAMLURL() == nil)
+    }
+
     @Test func testLineSplitter() {
         let lines = Box<[String]>()
         lines.value = []

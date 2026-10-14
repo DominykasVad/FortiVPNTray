@@ -54,8 +54,12 @@ protocol TunnelLauncher: Sendable {
 /// `start()` is recorded and acted on when `start()` returns, at which point
 /// the launcher has recorded the child. So a child spawned before its PID was
 /// recorded is still stopped, and never left running.
+///
+/// The log belongs to the session id, not to the state above: output that
+/// arrives after the session ended (the child's last lines can come after its
+/// exit) is still kept, until the next `connect` replaces the log.
 final class SessionController: @unchecked Sendable {
-    // @unchecked Sendable: `session`, `lastError` and `lastSessionID` are only touched while holding `lock`.
+    // @unchecked Sendable: `session`, `lastError` and `log` are only touched while holding `lock`.
     struct Refusal: Error, Equatable, CustomStringConvertible {
         let description: String
     }
@@ -65,6 +69,10 @@ final class SessionController: @unchecked Sendable {
     private struct Session {
         let id: String
         let since: Date
+        /// The SAML start URL openfortivpn will print for this request.
+        let samlStartURL: String
+        /// Set once the child printed `samlStartURL`.
+        var samlURLPrinted = false
         var startReturned = false
         var stopRequested = false
         var tunnelUp = false
@@ -76,7 +84,8 @@ final class SessionController: @unchecked Sendable {
     private let lock = NSLock()
     private var session: Session?
     private var lastError: String?
-    private var lastSessionID: String?
+    /// The current or last session's output.
+    private var log: SessionLog?
 
     init(launcher: any TunnelLauncher, now: @escaping @Sendable () -> Date = Date.init) {
         self.launcher = launcher
@@ -87,8 +96,8 @@ final class SessionController: @unchecked Sendable {
         let id = UUID().uuidString
         try locked {
             guard session == nil else { throw Refusal(description: "A session is already active.") }
-            session = Session(id: id, since: now())
-            lastSessionID = id
+            session = Session(id: id, since: now(), samlStartURL: Self.samlStartURL(for: request))
+            log = SessionLog(sessionID: id)
             lastError = nil
         }
         do {
@@ -144,22 +153,43 @@ final class SessionController: @unchecked Sendable {
         }
     }
 
-    /// Log lines for the current or last session. Task 2.4 fills in the lines.
+    /// Redacted log lines for the current or last session.
     func readLog(sessionID: String, offset: Int) throws -> LogChunk {
         guard offset >= 0 else { throw Refusal(description: "The log offset must not be negative.") }
-        guard locked({ lastSessionID }) == sessionID else { throw Refusal(description: "Unknown session.") }
-        return LogChunk(lines: [], nextOffset: offset)
+        return try locked {
+            guard let log, log.sessionID == sessionID else { throw Refusal(description: "Unknown session.") }
+            return log.read(from: offset)
+        }
     }
 
-    /// Task 2.4 parses the URL from the child's output.
-    func pendingSAMLURL() -> URL? { nil }
+    /// The URL the user must open to log in: from when the child printed it until the
+    /// tunnel is up or a disconnect was requested.
+    ///
+    /// It is built from the validated request, never taken from the child's output:
+    /// the output only says when openfortivpn printed exactly this URL.
+    func pendingSAMLURL() -> URL? {
+        locked {
+            guard let session, session.samlURLPrinted, !session.tunnelUp, !session.stopRequested else { return nil }
+            return URL(string: session.samlStartURL)
+        }
+    }
+
+    /// What openfortivpn prints for `saml-login` (`http_server.c`, `print_url`):
+    /// `https://<host>:<port>/remote/saml/start?redirect=1` and `&realm=<url-encoded realm>`.
+    /// A valid realm has only characters that url_encode keeps.
+    static func samlStartURL(for request: ConnectRequest) -> String {
+        "https://\(request.host):\(request.port)/remote/saml/start?redirect=1" + (request.realm.map { "&realm=" + $0 } ?? "")
+    }
 
     private func handle(_ event: TunnelEvent, sessionID: String) {
         locked {
+            if case .output(let line) = event, log?.sessionID == sessionID {
+                log?.append(rawLine: line)
+            }
             guard let current = session, current.id == sessionID else { return }
             switch event {
-            case .output:
-                break   // Task 2.4: redact and keep.
+            case .output(let line):
+                if line == "INFO:   Authenticate at '\(current.samlStartURL)'" { session?.samlURLPrinted = true }
             case .tunnelUp:
                 session?.tunnelUp = true
             case .exited(let exit):
