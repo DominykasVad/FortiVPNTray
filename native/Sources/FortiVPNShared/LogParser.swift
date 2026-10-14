@@ -9,7 +9,8 @@ public struct LogParser {
     public private(set) var dnsSuffixes: [String] = []
     public private(set) var localIP: String?
     public private(set) var lastError: String?
-    private var certificateFailed = false
+    /// Set by openfortivpn's failure line; only the line right after it may carry the digest.
+    private var digestLineNext = false
     private var reportedCertificates: Set<String> = []
     private var reportedURLs: Set<URL> = []
     /// Gateway-pushed suffixes kept at most (decision log, 3.1 fix).
@@ -30,9 +31,18 @@ public struct LogParser {
         for pattern in [#"Got addresses: \[([0-9.]+)\]"#, #"local\s+IP address\s+([0-9.]+)"#, #"local IP is\s+([0-9.]+)"#] {
             if let ip = Self.capture(pattern, line), Validation.ipv4(ip) { localIP = ip }
         }
-        if line.contains("Gateway certificate validation failed") { certificateFailed = true }
-        if certificateFailed, let digest = Self.capture(#"(?i)(?:--trusted-cert[=\s]+|sha256:\s*)([0-9a-f:]{64,95})"#, line)?.replacingOccurrences(of: ":", with: "").lowercased(), Validation.digest(digest), reportedCertificates.insert(digest).inserted {
-            events.append(.certificate(digest))
+        // openfortivpn (`tunnel.c`, `ssl_verify_cert`) prints the failure line, then at once
+        // "    --trusted-cert <digest>". The certificate's subject and issuer follow, one
+        // component per line and split at '/', so the gateway controls those lines: only
+        // the exact line straight after the failure line, at its exact indent, is taken.
+        if digestLineNext {
+            digestLineNext = false
+            if let digest = Self.capture(#"^ERROR:      --trusted-cert ([0-9a-f]{64})$"#, line), Validation.digest(digest), reportedCertificates.insert(digest).inserted {
+                events.append(.certificate(digest))
+            }
+        }
+        if line.hasPrefix("ERROR:  Gateway certificate validation failed, and the certificate digest is not in the local whitelist.") {
+            digestLineNext = true
         }
         if line.lowercased().contains("saml"), let raw = Self.capture(#"(https?://[^\s\"'<>]+)"#, line), let url = URL(string: raw), let host = url.host,
            (url.scheme == "https" || host == "127.0.0.1" || host == "localhost"), reportedURLs.insert(url).inserted {

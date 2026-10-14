@@ -58,7 +58,6 @@ struct CoreTests {
         let json = #"[{"id":"old-id","name":"Office","host":"vpn.example.com","port":8443,"auth_type":"Saml","username":null,"realm":"staff","trusted_certs":[],"extra_args":[]}]"#
         let values = try JSONDecoder().decode([VPNProfile].self, from: Data(json.utf8))
         expectEqual(values[0].id, "old-id")
-        expectFalse(values[0].ignoreCertErrors)
         expectEqual(try JSONDecoder().decode([VPNProfile].self, from: JSONEncoder().encode(values)), values)
         // SAML only (3.0): the old authentication fields are read past and not written back.
         let encoded = try JSONSerialization.jsonObject(with: JSONEncoder().encode(values[0])) as! [String: Any]
@@ -123,6 +122,16 @@ struct CoreTests {
         let values = try JSONDecoder().decode([VPNProfile].self, from: Data(json.utf8))
         expectEqual(try values[0].arguments(), ["vpn.example.com:8443", "--saml-login", "--set-dns=0", "--pppd-use-peerdns=0", "-v"])
         expectFalse(String(decoding: try JSONEncoder().encode(values), as: UTF8.self).contains("alice"))
+    }
+    /// F10: the old "Ignore certificate errors" option trusted whatever the gateway presented.
+    /// A profile that still has it set loads with its explicit pins only and loses the flag on save.
+    @Test func testIgnoreCertErrorsIsDecodedAndDropped() throws {
+        let pin = String(repeating: "cd", count: 32)
+        let json = #"[{"id":"old-id","name":"Office","host":"vpn.example.com","port":8443,"trusted_certs":["\#(pin)"],"ignore_cert_errors":true}]"#
+        let values = try JSONDecoder().decode([VPNProfile].self, from: Data(json.utf8))
+        expectEqual(values[0].trustedCerts, [pin])
+        expectEqual(try values[0].arguments(), ["vpn.example.com:8443", "--saml-login", "--trusted-cert=" + pin, "--set-dns=0", "--pppd-use-peerdns=0", "-v"])
+        expectFalse(String(decoding: try JSONEncoder().encode(values), as: UTF8.self).contains("ignore_cert_errors"))
     }
     @Test func testStoredExtraArgumentsAreDroppedOnLoad() throws {
         // Profiles written before extra arguments were removed may still carry them, including hostile ones.
@@ -192,10 +201,13 @@ struct CoreTests {
     @Test func testCertificateReportedOnceAfterFailure() {
         var parser = LogParser()
         let digest = String(repeating: "ab", count: 32)
-        expectEqual(parser.consume("--trusted-cert=" + digest), [])
-        _ = parser.consume("ERROR: Gateway certificate validation failed.")
-        expectEqual(parser.consume(" --trusted-cert=" + digest), [.certificate(digest)])
-        expectEqual(parser.consume(" --trusted-cert=" + digest), [])
+        // openfortivpn's exact lines (tunnel.c); before the failure line nothing counts.
+        let failure = "ERROR:  Gateway certificate validation failed, and the certificate digest is not in the local whitelist. If you trust it, rerun with:"
+        expectEqual(parser.consume("ERROR:      --trusted-cert " + digest), [])
+        _ = parser.consume(failure)
+        expectEqual(parser.consume("ERROR:      --trusted-cert " + digest), [.certificate(digest)])
+        _ = parser.consume(failure)
+        expectEqual(parser.consume("ERROR:      --trusted-cert " + digest), []) // reported once
     }
     @Test func testSAMLURLDetectedOnceAndRejectsNonLocalHTTP() {
         var parser = LogParser()

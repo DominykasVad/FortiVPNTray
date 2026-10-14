@@ -14,14 +14,13 @@ public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
     public var port = 8443
     public var realm: String? = nil
     public var trustedCerts: [String] = []
-    public var ignoreCertErrors = false
     public init() {}
     /// SAML is the only authentication method (decision log, 1.3). Profiles written
-    /// before 3.0 may still carry `auth_type` and `username`; they are not read.
+    /// before 3.0 may still carry `auth_type` and `username`, and before 3.2
+    /// `ignore_cert_errors` (F10); none of them is read or written back.
     enum CodingKeys: String, CodingKey {
         case id, name, host, port, realm
         case trustedCerts = "trusted_certs"
-        case ignoreCertErrors = "ignore_cert_errors"
     }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -31,7 +30,6 @@ public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
         port = try c.decode(Int.self, forKey: .port)
         realm = try c.decodeIfPresent(String.self, forKey: .realm)
         trustedCerts = try c.decodeIfPresent([String].self, forKey: .trustedCerts) ?? []
-        ignoreCertErrors = try c.decodeIfPresent(Bool.self, forKey: .ignoreCertErrors) ?? false
     }
     public func validated() throws -> VPNProfile {
         var result = self

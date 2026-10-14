@@ -377,9 +377,19 @@ it. Version check compares **protocol** version.
 ### Tasks — phase 3
 - [x] **3.0** Remove password authentication from the app (F9): `AuthType` and its editor radio, username field, Keychain password storage and access, related tests. No migration: there are no existing profiles or saved passwords to carry over. Docs updated in 3.3.
 - [x] **3.1** `VPNEngine` as client of the new API; SAML URL polling.
-- [ ] **3.2** Delete `GatewayCertificate` / `ignoreCertErrors` (decode-and-drop); cert-pin flow from helper events.
+- [x] **3.2** Delete `GatewayCertificate` / `ignoreCertErrors` (decode-and-drop); cert-pin flow from helper events.
 - [ ] **3.3** Settings shows caller-check mode; README + native/README updated.
 - [ ] **3.4** openfortivpn update check + Update action (runs through the admin-prompt install path, like Repair — **not** a new helper API call: a same-user caller must not be able to trigger a re-copy).
+- [ ] **3.5** SAML login window, chosen per profile like FortiClient: a profile setting
+  "Use external browser for SAML" (default off).
+  - Off (embedded): ASWebAuthenticationSession (no entitlement;
+    prefersEphemeralWebBrowserSession = false, so the Safari/Entra session and "stay signed in"
+    are shared). The redirect to 127.0.0.1:<listen port> is loaded by the window and reaches
+    openfortivpn as before; the app closes the window when the helper reports connected, on
+    disconnect or failure; user cancel → disconnect.
+  - On (external): NSWorkspace.open in the default browser, as now.
+  - Both only with a URL that passes SAMLLogin.isExpected. The setting is app-side only and
+    never sent to the helper. Old profiles decode with the default. Decision-log line.
 
 **Review checkpoint 3.**
 
@@ -452,6 +462,7 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 3.1 · The app takes connected/ended from the helper's `status()`, not from log lines; the log is used for display and the certificate digest only · the helper owns the session, and its status also covers ends the log never shows (helper restart, another client's disconnect).
 - 2026-10-14 · 3.1 · Of the Rust-era names only `AppIdentity.socketPath` and `helperLogPath` stay, commented, for the installer's cleanup · nothing else uses them; `helperVersion`, `sessionLogPrefix`, the socket client and `LogBuffer` are gone.
 - 2026-10-14 · 3.1 (fix) · Gateway-pushed DNS suffix lists: the whole `Found dns suffix …` value is split at ';', ',' and whitespace, each part checked with `Validation.hostname`, empty or invalid parts dropped, duplicates merged, at most 16 kept · openfortivpn prints the gateway's `domain=` value as one string, and a list with spaces after the ';' kept only its first suffix.
+- 2026-10-14 · 3.2 · The pin prompt's digest is parsed app-side from `readLog`, not a typed `HelperStatus` field, and only from openfortivpn's exact hint line (`ERROR:      --trusted-cert <64 lowercase hex>`) directly after its failure line · redaction leaves those lines intact and the API stays unchanged; the certificate's subject and issuer follow as gateway-controlled lines split at '/', so any looser match would let a gateway propose the digest to pin.
 
 ## Open questions
 
