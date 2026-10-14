@@ -137,6 +137,7 @@ struct TunnelStateTests {
 
     @Test func testProductionPath() {
         #expect(StateStore.production.path == "/Library/Application Support/eu.dvad.fortivpntray.helper/state.json")
+        #expect(StateStore.production.path == AppIdentity.helperStateFile, "the uninstaller checks this file")
         #expect(StateStore.production.directory.owner == 0)
         #expect(StateStore.production.directory.trust.trustedOwners == [0])
     }

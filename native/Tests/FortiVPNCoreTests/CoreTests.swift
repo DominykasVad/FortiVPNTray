@@ -11,14 +11,28 @@ struct CoreTests {
     }
     @Test func testHelperInstallationClassifiesFilesAndServiceIndependently() {
         typealias Status = HelperInstallationStatus
-        expectEqual(Status(executablePresent: false, launchDaemonPresent: false, version: nil).state, .missing)
-        expectEqual(Status(executablePresent: true, launchDaemonPresent: false, version: nil).state, .incomplete)
-        expectEqual(Status(executablePresent: false, launchDaemonPresent: true, version: nil).state, .incomplete)
-        expectEqual(Status(executablePresent: true, launchDaemonPresent: true, version: nil).state, .unavailable)
-        expectEqual(Status(executablePresent: true, launchDaemonPresent: true, version: AppIdentity.helperVersion).state, .ready)
-        expectEqual(Status(executablePresent: true, launchDaemonPresent: true, version: "old").state, .versionMismatch)
+        let current = HelperVersion(version: HelperTransport.helperVersion, protocolVersion: HelperTransport.protocolVersion, mode: .signed)
+        // The version string may change freely; only the protocol decides (PLAN.md 2.6).
+        let otherBuild = HelperVersion(version: "old", protocolVersion: HelperTransport.protocolVersion, mode: .signed)
+        let otherProtocol = HelperVersion(version: HelperTransport.helperVersion, protocolVersion: HelperTransport.protocolVersion + 1, mode: .signed)
+        expectEqual(Status(executablePresent: false, launchDaemonPresent: false, helper: nil).state, .missing)
+        expectEqual(Status(executablePresent: true, launchDaemonPresent: false, helper: nil).state, .incomplete)
+        expectEqual(Status(executablePresent: false, launchDaemonPresent: true, helper: nil).state, .incomplete)
+        expectEqual(Status(executablePresent: true, launchDaemonPresent: true, helper: nil).state, .unavailable)
+        expectEqual(Status(executablePresent: true, launchDaemonPresent: true, helper: current).state, .ready)
+        expectEqual(Status(executablePresent: true, launchDaemonPresent: true, helper: otherBuild).state, .ready)
+        expectEqual(Status(executablePresent: true, launchDaemonPresent: true, helper: otherProtocol).state, .versionMismatch)
         // A still-running process with removed files is not a verified installation/removal.
-        expectEqual(Status(executablePresent: false, launchDaemonPresent: false, version: AppIdentity.helperVersion).state, .incomplete)
+        expectEqual(Status(executablePresent: false, launchDaemonPresent: false, helper: current).state, .incomplete)
+    }
+    @Test func testHelperStatusShowsTheCallerCheckAndWarnsAboutUIDOnly() {
+        let signed = HelperInstallationStatus(executablePresent: true, launchDaemonPresent: true,
+                                              helper: HelperVersion(version: "0.3.0", protocolVersion: HelperTransport.protocolVersion, mode: .signed))
+        expectEqual(signed.detail, "Version 0.3.0 · Signed caller check · Ready to connect.")
+        let uidOnly = HelperInstallationStatus(executablePresent: true, launchDaemonPresent: true,
+                                               helper: HelperVersion(version: "0.3.0", protocolVersion: HelperTransport.protocolVersion, mode: .uidOnly))
+        expectEqual(uidOnly.detail, "Version 0.3.0 · UID-only · " + HelperInstallationStatus.uidOnlyWarning)
+        expectTrue(HelperInstallationStatus.uidOnlyWarning.contains("any process running as you"))
     }
     @Test func testStatisticsByteBoundaries() {
         expectEqual(StatisticsFormatter.bytes(0), "0 B")

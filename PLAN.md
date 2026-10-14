@@ -333,7 +333,7 @@ it. Version check compares **protocol** version.
 - [x] **2.3** Spawning: config writer, argv builder, binary/dylib ownership checks.
 - [x] **2.4** Logs: ring buffer + redaction.
 - [x] **2.5** DNS, routes, cleanup, state file.
-- [ ] **2.6** Installer / uninstaller.
+- [x] **2.6** Installer / uninstaller.
 - [ ] **2.7** Delete `helper/` (Rust), its CI step and build steps.
 
 **Review checkpoint 2** — full helper diff.
@@ -433,6 +433,9 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 2.5 · The default route is restored only while the recorded pppd is still the same running process, besides pointing at the session's ppp interface · once that pppd is gone its interface name can belong to another VPN's pppd, whose default route must stay untouched.
 - 2026-10-14 · 2.5 · A recorded PID that fails the identity check is skipped; the other cleanup steps still run and the state is removed afterwards · a stale host route and the DNS key are exactly what a crashed session leaves, and they are removed by validated value, not by PID.
 - 2026-10-14 · 2.5 · Connect is refused if the state file cannot be saved, and it is saved before openfortivpn is started · without it a helper crash would leave routes and DNS nothing can undo.
+- 2026-10-14 · 2.6 · The install is confirmed inside the admin script: the newly installed helper runs as root with `--verify-install` (the same `OpenFortiVPNInstall.verify()` as before each spawn) and the job is bootstrapped only if it passes · the app has no XPC call for it, and as the user it could not run the check with root's trust rules.
+- 2026-10-14 · 2.6 · The installer refuses a helper copy whose sha256 differs from what the app hashed before the prompt; the copied openfortivpn is never run during install (versions come from the keg name and `strings`) · the bundle is user-writable and could be swapped during the prompt; running the copy as root without the helper's OpenSSL environment could read user-writable OpenSSL configuration.
+- 2026-10-14 · 2.6 · Uninstall is refused if the helper reports a session over XPC, and the script also refuses while the state file exists · removing the helper mid-session would leave routes and DNS nobody cleans up; the state-file check works even when the helper cannot be asked.
 
 ## Open questions
 
