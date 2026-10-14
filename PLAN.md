@@ -378,7 +378,7 @@ it. Version check compares **protocol** version.
 - [x] **3.0** Remove password authentication from the app (F9): `AuthType` and its editor radio, username field, Keychain password storage and access, related tests. No migration: there are no existing profiles or saved passwords to carry over. Docs updated in 3.3.
 - [x] **3.1** `VPNEngine` as client of the new API; SAML URL polling.
 - [x] **3.2** Delete `GatewayCertificate` / `ignoreCertErrors` (decode-and-drop); cert-pin flow from helper events.
-- [ ] **3.3** Settings shows caller-check mode; README + native/README updated.
+- [x] **3.3** Settings shows caller-check mode; README + native/README updated.
 - [ ] **3.4** openfortivpn update check + Update action (runs through the admin-prompt install path, like Repair — **not** a new helper API call: a same-user caller must not be able to trigger a re-copy).
 - [ ] **3.5** SAML login window, chosen per profile like FortiClient: a profile setting
   "Use external browser for SAML" (default off).
