@@ -246,8 +246,7 @@ Helper keeps an in-memory ring buffer per session (redacted with `LogParser.reda
 served via `readLog`. Redaction must cover the two secrets `-v` prints (S3): the
 session cookie (`Cookie: SVPNCOOKIE=…`, the whole rest of the line) and the SAML
 session id (`Using SAML authentication URL /remote/saml/auth_id?id=…`). A test
-uses the exact log formats from `spikes/openfortivpn-config/FINDINGS.md`. Optional on-disk copy only in
-the root-owned dir, file `0600`. No `/tmp` anywhere.
+uses the exact log formats from `spikes/openfortivpn-config/FINDINGS.md`. No `/tmp` anywhere.
 
 ### 2.5 DNS, routes, cleanup (F6, F7, F8)
 - Helper records original default gateway (`route -n get default`) and resolves
@@ -379,6 +378,7 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 2.3 · A disconnect while the launcher's start is still running is recorded and acted on when start returns; the launcher's stop never runs alongside its start · the child may be spawned before its PID is recorded, and only after start returns can stop reach it, so it is never left running.
 - 2026-10-14 · 2.4 · The session log belongs to the session id and is kept until the next connect, independent of the session state; output after the child's exit or a disconnect is still stored · the child's last lines (usually the reason it failed) can arrive after its exit is reported, and `readLog` of the last session must show them.
 - 2026-10-14 · 2.4 · `pendingSAMLURL` is built by the helper from the validated request (`https://<host>:<port>/remote/saml/start?redirect=1[&realm=…]`) and offered only once the child printed exactly that URL; the URL is redacted from the log · nothing from the child's output reaches the browser, and SAML URLs are never logged.
+- 2026-10-14 · 2.4 · No on-disk log copy; the session log is in memory only · every file copy is another place unredacted output could end up; the in-memory log covers error reporting.
 
 ## Open questions
 
