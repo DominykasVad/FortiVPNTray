@@ -7,26 +7,20 @@ public struct VPNError: LocalizedError, Equatable {
     public var errorDescription: String? { message }
 }
 
-public enum AuthType: String, Codable, CaseIterable, Identifiable, Sendable {
-    case password = "Password", saml = "Saml"
-    public var id: String { rawValue }
-    public var title: String { self == .password ? "Password" : "SAML / SSO" }
-}
-
 public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
     public var id = UUID().uuidString
     public var name = ""
     public var host = ""
     public var port = 8443
-    public var authType: AuthType = .password
-    public var username: String? = nil
     public var realm: String? = nil
     public var trustedCerts: [String] = []
     public var ignoreCertErrors = false
     public init() {}
+    /// SAML is the only authentication method (decision log, 1.3). Profiles written
+    /// before 3.0 may still carry `auth_type` and `username`; they are not read.
     enum CodingKeys: String, CodingKey {
-        case id, name, host, port, username, realm
-        case authType = "auth_type", trustedCerts = "trusted_certs"
+        case id, name, host, port, realm
+        case trustedCerts = "trusted_certs"
         case ignoreCertErrors = "ignore_cert_errors"
     }
     public init(from decoder: Decoder) throws {
@@ -35,8 +29,6 @@ public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
         name = try c.decode(String.self, forKey: .name)
         host = try c.decode(String.self, forKey: .host)
         port = try c.decode(Int.self, forKey: .port)
-        authType = try c.decode(AuthType.self, forKey: .authType)
-        username = try c.decodeIfPresent(String.self, forKey: .username)
         realm = try c.decodeIfPresent(String.self, forKey: .realm)
         trustedCerts = try c.decodeIfPresent([String].self, forKey: .trustedCerts) ?? []
         ignoreCertErrors = try c.decodeIfPresent(Bool.self, forKey: .ignoreCertErrors) ?? false
@@ -55,16 +47,9 @@ public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
         }
         return result
     }
-    public func arguments(password: String?) throws -> [String] {
+    public func arguments() throws -> [String] {
         let p = try validated()
-        var args = ["\(p.host):\(p.port)"]
-        if authType == .password {
-            guard let user = username?.trimmingCharacters(in: .whitespacesAndNewlines), !user.isEmpty else {
-                throw VPNError("Enter a username in the profile.")
-            }
-            guard let password, !password.isEmpty else { throw VPNError("Save a password in the profile before connecting.") }
-            args += ["-u", user, "-p", password]
-        } else { args += ["--saml-login"] }
+        var args = ["\(p.host):\(p.port)", "--saml-login"]
         args += p.trustedCerts.map { "--trusted-cert=\($0)" }
         if let realm, !realm.isEmpty { args += ["--realm=\(realm)"] }
         args += ["--set-dns=0", "--pppd-use-peerdns=0", "-v"]

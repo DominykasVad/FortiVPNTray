@@ -62,20 +62,13 @@ final class AppModel: ObservableObject {
         }
         if !smokeTest { refreshHelper() }
     }
-    func save(_ profile: VPNProfile, password: String) throws {
+    func save(_ profile: VPNProfile) throws {
         guard maySave(profile) else { throw VPNError("Cannot save this profile while connected or configuration storage is unavailable.") }
         let profile = try profile.validated()
-        let previous = profiles
         var updated = profiles
         if let index = updated.firstIndex(where: { $0.id == profile.id }) { updated[index] = profile }
         else { updated.append(profile) }
         try store.save(profiles: updated)
-        do {
-            if !password.isEmpty { try Keychain.save(password, for: profile.id) }
-        } catch {
-            try store.save(profiles: previous)
-            throw error
-        }
         profiles = updated
         if !hasSession { selectedID = profile.id }
     }
@@ -86,7 +79,6 @@ final class AppModel: ObservableObject {
             try store.save(profiles: updated)
             profiles = updated
             selectedID = profiles.first?.id
-            try Keychain.delete(profile.id)
         } catch { self.error = error.localizedDescription }
     }
     func saveSettings() {
@@ -106,8 +98,7 @@ final class AppModel: ObservableObject {
         let settings = self.settings
         operation = Task {
             do {
-                let password = profile.authType == .password ? try Keychain.password(for: profile.id) : nil
-                try await engine.start(profile: profile, password: password, settings: settings)
+                try await engine.start(profile: profile, settings: settings)
                 guard generation == token else { return }
                 while !Task.isCancelled && generation == token {
                     let result = try await engine.poll()
@@ -172,7 +163,7 @@ final class AppModel: ObservableObject {
                 try await shutdown()
                 guard var profile = profiles.first(where: { $0.id == prompt.profileID }) else { return }
                 if !profile.trustedCerts.contains(prompt.digest) { profile.trustedCerts.append(prompt.digest) }
-                try save(profile, password: "")
+                try save(profile)
                 connect()
             } catch { self.error = error.localizedDescription }
         }
@@ -218,7 +209,7 @@ final class AppModel: ObservableObject {
                     helperFeedbackIsError = true
                     helperFeedback = "Helper installed in UID-only mode. " + HelperInstallationStatus.uidOnlyWarning
                 } else {
-                    helperFeedback = install ? "Helper installed successfully and ready to use." : "Helper uninstalled. Your profiles and saved passwords are preserved."
+                    helperFeedback = install ? "Helper installed successfully and ready to use." : "Helper uninstalled. Your profiles are preserved."
                 }
             } catch {
                 helperFeedbackIsError = true

@@ -375,7 +375,7 @@ it. Version check compares **protocol** version.
   source hashes; never trusts it for anything the helper relies on.
 
 ### Tasks — phase 3
-- [ ] **3.0** Remove password authentication from the app (F9): `AuthType` and its editor radio, username field, Keychain password storage and access, related tests. No migration: there are no existing profiles or saved passwords to carry over. Docs updated in 3.3.
+- [x] **3.0** Remove password authentication from the app (F9): `AuthType` and its editor radio, username field, Keychain password storage and access, related tests. No migration: there are no existing profiles or saved passwords to carry over. Docs updated in 3.3.
 - [ ] **3.1** `VPNEngine` as client of the new API; SAML URL polling.
 - [ ] **3.2** Delete `GatewayCertificate` / `ignoreCertErrors` (decode-and-drop); cert-pin flow from helper events.
 - [ ] **3.3** Settings shows caller-check mode; README + native/README updated.
