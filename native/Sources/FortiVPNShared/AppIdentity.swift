@@ -10,6 +10,10 @@ public enum AppIdentity {
     public static let helperLogPath = "/var/log/\(helperLabel).log"
     public static let helperExecutablePath = "/Library/PrivilegedHelperTools/\(helperLabel)"
     public static let launchDaemonPlistPath = "/Library/LaunchDaemons/\(helperLabel).plist"
+    /// Root-owned copy of openfortivpn and its dylibs (S2), made by the installer.
+    public static let openfortivpnDirectory = "/Library/PrivilegedHelperTools/\(helperLabel).d"
+    /// Root-owned `0700` directory for per-session openfortivpn config files.
+    public static let helperRunDirectory = "/Library/Application Support/\(helperLabel)/run"
     public static let dnsServiceKey = "State:/Network/Service/\(identifier)/DNS"
     public static let sessionLogPrefix = "/tmp/\(identifier)-"
 }

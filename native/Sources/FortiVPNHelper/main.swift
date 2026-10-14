@@ -18,7 +18,7 @@ do {
     log.fault("Refusing to start: \(String(describing: error), privacy: .public)")
     exit(EX_USAGE)
 }
-guard let callerCheck = CallerCheck(arguments: launchArguments, sessions: SessionController(launcher: UnavailableLauncher())) else {
+guard let callerCheck = CallerCheck(arguments: launchArguments, sessions: SessionController(launcher: OpenFortiVPNLauncher())) else {
     log.fault("Refusing to start: the caller requirement could not be built")
     exit(EX_USAGE)
 }

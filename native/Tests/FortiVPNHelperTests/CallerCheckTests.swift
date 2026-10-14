@@ -32,7 +32,7 @@ struct CallerCheckTests {
     /// delivers on are starved on a runner with few cores.
     private func call<Value: Sendable>(
         _ arguments: HelperLaunchArguments, clientIdentifier: String = AppIdentity.identifier,
-        sessions: SessionController = SessionController(launcher: UnavailableLauncher()),
+        sessions: SessionController = SessionController(launcher: MockLauncher(fails: true)),
         _ body: @escaping @Sendable (HelperXPCProtocol, @escaping @Sendable (Value) -> Void) -> Void
     ) async throws -> Value? {
         let check = try #require(CallerCheck(arguments: arguments, sessions: sessions, clientIdentifier: clientIdentifier))
@@ -92,7 +92,7 @@ struct CallerCheckTests {
 
     @Test func testUnbuildableRequirementDoesNotFallBackToUIDOnly() throws {
         let signed = try HelperLaunchArguments(allowedUID: getuid(), callerCheck: .signed(leafSHA1: String(repeating: "A", count: 40)))
-        let sessions = SessionController(launcher: UnavailableLauncher())
+        let sessions = SessionController(launcher: MockLauncher(fails: true))
         #expect(CallerCheck(arguments: signed, sessions: sessions, clientIdentifier: "bad\" or anchor apple") == nil)
         #expect(CallerCheck(arguments: signed, sessions: sessions, clientIdentifier: "") == nil)
     }
@@ -150,7 +150,7 @@ struct CallerCheckTests {
     }
 
     private struct AcceptingLauncher: TunnelLauncher {
-        func start(_ request: ConnectRequest, sessionID: String) throws {}
-        func stop() {}
+        func start(_ request: ConnectRequest, sessionID: String, onEvent: @escaping @Sendable (TunnelEvent) -> Void) throws {}
+        func stop(sessionID: String) {}
     }
 }
