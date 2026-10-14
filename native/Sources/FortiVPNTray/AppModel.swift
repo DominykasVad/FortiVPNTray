@@ -117,7 +117,6 @@ final class AppModel: ObservableObject {
                         case .connected(let address):
                             phase = .connected; ip = address; since = since ?? Date(); samlURL = nil
                             samlLogin.finish()
-                        case .disconnected: appendLog("The tunnel is down; waiting for process cleanup.")
                         case .saml(let url):
                             // Checked again right before it is opened (PLAN.md 3.1), in the login
                             // window or the browser as the profile says (3.5).
