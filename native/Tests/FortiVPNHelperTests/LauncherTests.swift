@@ -104,6 +104,9 @@ struct LauncherTests {
         private var _all: [TunnelEvent] = []
         var all: [TunnelEvent] { lock.withLock { _all } }
         func record(_ event: TunnelEvent) { lock.withLock { _all.append(event) } }
+        /// The exits reported. Output can still arrive after the exit (the pipe and the
+        /// termination handler are separate, decision log 2.4), so the exit need not be last.
+        var exits: [ChildExit] { all.compactMap { if case .exited(let exit) = $0 { return exit } else { return nil } } }
     }
 
     @Test func testChildGetsFixedArgvEnvironmentAndConfigAndConfigIsDeletedWhenUp() throws {
@@ -142,7 +145,7 @@ struct LauncherTests {
         #expect(isAlive(child))
         launcher.stop(sessionID: id)
         #expect(!isAlive(child))
-        #expect(eventually { events.all.last == .exited(.signal(SIGINT)) })
+        #expect(eventually { events.exits == [.signal(SIGINT)] }, "\(events.all)")
         #expect(fake.configFiles().isEmpty)
         // A new session can start once the old child is gone.
         let next = UUID().uuidString
@@ -162,7 +165,7 @@ struct LauncherTests {
         launcher.stop(sessionID: id)
         #expect(Date().timeIntervalSince(began) >= OpenFortiVPNLauncher.stopGrace - 0.1)
         #expect(!isAlive(try #require(pid.value)))
-        #expect(eventually { events.all.last == .exited(.signal(SIGKILL)) })
+        #expect(eventually { events.exits == [.signal(SIGKILL)] }, "\(events.all)")
     }
 
     @Test func testStartReturnsTheChildsIdentity() throws {
@@ -211,7 +214,7 @@ struct LauncherTests {
         let launcher = OpenFortiVPNLauncher(install: fake.install, runDirectory: fake.runDirectory)
         let events = Events()
         try launcher.start(try ConnectRequest(host: "vpn.example.com", port: 443), sessionID: UUID().uuidString) { events.record($0) }
-        #expect(eventually { events.all.last == .exited(.status(3)) })
+        #expect(eventually { events.exits == [.status(3)] }, "\(events.all)")
         #expect(fake.configFiles().isEmpty)
         // The launcher forgot the dead child, so the next start is allowed.
         let next = UUID().uuidString
