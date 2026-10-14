@@ -250,26 +250,42 @@ uses the exact log formats from `spikes/openfortivpn-config/FINDINGS.md`. No `/t
 
 ### 2.5 DNS, routes, cleanup (F6, F7, F8)
 - Helper records original default gateway (`route -n get default`) and resolves
-  server IP itself. Persists `{pid, iface, serverIP, gateway, dnsApplied}` to a
-  root-owned state file (survives helper restart / sleep).
-- On "Tunnel is up": apply DNS via `scutil` from parsed `Found dns server/suffix`
+  server IP itself. Persists `{pid, iface, serverIP, gateway, dnsApplied}`, the
+  pppd PID and each PID's identity (below) to a root-owned state file (survives
+  helper restart / sleep).
+- DNS through SystemConfiguration (`SCDynamicStoreCopyValue` / `SetValue` /
+  `RemoveValue`), not the `scutil` binary: typed API, nothing to parse, nothing
+  to inject. On "Tunnel is up": apply DNS from parsed `Found dns server/suffix`
   lines; if none parsed and `useSystemDNSFallback`, the helper uses the system
   resolvers it read itself before connecting (`State:/Network/Global/DNS`).
+- Routes: `/sbin/route` via `Process` with an argument array, values only from
+  validated sources (resolved server IPv4, recorded gateway, ppp iface name
+  matching `^ppp[0-9]+$`).
 - Disconnect: SIGINT tracked pid → SIGKILL after 2 s; record pppd's PID (child of
   the tracked openfortivpn) while openfortivpn is still alive and persist it in the
   state file; on disconnect stop that recorded pppd explicitly, because after
   SIGKILL on openfortivpn its pppd is reparented to launchd and `pgrep -P` no
   longer finds it. Never match pppd by name (F8). Remove the server host route;
-  restore default route only if it currently points at the session's ppp iface;
-  remove scutil key; flush cache.
+  restore the default route only if it currently points at the session's ppp
+  iface; remove the DNS key; flush cache.
 - Every recorded PID (openfortivpn and pppd) is stored with its start time and
   executable path. Before signalling one, verify it is still the same process:
   compare the start time (`proc_pidinfo` / `PROC_PIDTBSDINFO`,
   `pbi_start_tvsec` + `pbi_start_tvusec`) and the executable path. Mismatch →
   don't signal, just clear the state. Test with a recorded PID whose process has
   exited.
-- Child exits unexpectedly → same cleanup automatically (helper notices, not the app).
-- Pre-connect orphan sweep uses only the persisted state file.
+- Cleanup runs on every exit path: disconnect, child exits unexpectedly (helper
+  notices, not the app), helper restart. Every step is idempotent and
+  independent, so one failure doesn't skip the rest.
+- State file: in a root-owned dir, written atomically (temp file
+  `O_CREAT|O_EXCL|O_NOFOLLOW`, then `rename`), strict JSON decode, size limit.
+  Unreadable or invalid state → log, do nothing destructive.
+- Orphan sweep at helper start and before connect uses only the state file and
+  the identity check above.
+- Tests: every system call (signals, process info, routes, SystemConfiguration)
+  is behind a protocol with a fake; unit tests never touch the real network,
+  routes or DNS. Real behaviour (sleep/wake, stale routes, other pppd untouched)
+  is checked in phase 4.
 
 ### 2.6 Installer
 Extend `HelperInstaller` (`Helper.swift`): single admin prompt that `install`s the
@@ -379,6 +395,7 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 2.4 · The session log belongs to the session id and is kept until the next connect, independent of the session state; output after the child's exit or a disconnect is still stored · the child's last lines (usually the reason it failed) can arrive after its exit is reported, and `readLog` of the last session must show them.
 - 2026-10-14 · 2.4 · `pendingSAMLURL` is built by the helper from the validated request (`https://<host>:<port>/remote/saml/start?redirect=1[&realm=…]`) and offered only once the child printed exactly that URL; the URL is redacted from the log · nothing from the child's output reaches the browser, and SAML URLs are never logged.
 - 2026-10-14 · 2.4 · No on-disk log copy; the session log is in memory only · every file copy is another place unredacted output could end up; the in-memory log covers error reporting.
+- 2026-10-14 · 2.5 · DNS state is read and written through SystemConfiguration (`SCDynamicStore…`), not the `scutil` binary · typed API, nothing to parse, nothing to inject.
 
 ## Open questions
 
