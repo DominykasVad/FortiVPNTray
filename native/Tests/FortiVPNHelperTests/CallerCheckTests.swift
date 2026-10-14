@@ -104,7 +104,7 @@ struct CallerCheckTests {
 
     @Test func testConnectOverXPCValidatesTheRequest() async throws {
         let arguments = try HelperLaunchArguments(allowedUID: getuid(), callerCheck: .uidOnly)
-        let hostile = Data(#"{"host":"-c/tmp/x","port":443,"auth":{"method":"saml","listenPort":8020},"trustedCerts":[],"dnsFallback":[]}"#.utf8)
+        let hostile = Data(#"{"host":"-c/tmp/x","port":443,"auth":{"method":"saml","listenPort":8020},"trustedCerts":[],"useSystemDNSFallback":true}"#.utf8)
         let refused = try await call(arguments) { proxy, done in proxy.connect(hostile) { done(Reply(value: $0, error: $1)) } }
         #expect(refused == Reply(value: nil, error: ConnectRequest.Rejection.host.description))
         let garbage = try await call(arguments) { proxy, done in proxy.connect(Data("x".utf8)) { done(Reply(value: $0, error: $1)) } }

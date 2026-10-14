@@ -15,7 +15,6 @@ public struct ConnectRequest: Equatable, Sendable {
     public static let samlListenPorts = 1024...65535
     public static let ports = 1...65535
     public static let maxTrustedCerts = 16
-    public static let maxDNSFallback = 4
     /// Larger request bodies are refused before they are parsed.
     public static let maxEncodedSize = 16 * 1024
 
@@ -29,8 +28,6 @@ public struct ConnectRequest: Equatable, Sendable {
         case samlListenPort
         case trustedCert
         case tooManyTrustedCerts
-        case dnsServer
-        case tooManyDNSServers
 
         public var description: String {
             switch self {
@@ -42,8 +39,6 @@ public struct ConnectRequest: Equatable, Sendable {
             case .samlListenPort: return "The SAML listen port must be between 1024 and 65535."
             case .trustedCert: return "Each trusted certificate must be 64 lowercase hex digits."
             case .tooManyTrustedCerts: return "At most \(ConnectRequest.maxTrustedCerts) trusted certificates are allowed."
-            case .dnsServer: return "Each fallback DNS server must be an IPv4 address."
-            case .tooManyDNSServers: return "At most \(ConnectRequest.maxDNSFallback) fallback DNS servers are allowed."
             }
         }
     }
@@ -53,11 +48,12 @@ public struct ConnectRequest: Equatable, Sendable {
     public let realm: String?
     public let auth: Auth
     public let trustedCerts: [String]
-    /// Only used if the tunnel provides no DNS servers.
-    public let dnsFallback: [String]
+    /// If the tunnel provides no DNS servers, keep the system resolvers the helper
+    /// read itself before connecting. The app never sends resolver addresses.
+    public let useSystemDNSFallback: Bool
 
     public init(host: String, port: Int, realm: String? = nil, auth: Auth = .saml(listenPort: defaultSAMLListenPort),
-                trustedCerts: [String] = [], dnsFallback: [String] = []) throws(Rejection) {
+                trustedCerts: [String] = [], useSystemDNSFallback: Bool = true) throws(Rejection) {
         guard Validation.host(host) else { throw .host }
         guard Self.ports.contains(port) else { throw .port }
         if let realm { guard Validation.realm(realm) else { throw .realm } }
@@ -66,14 +62,12 @@ public struct ConnectRequest: Equatable, Sendable {
         }
         guard trustedCerts.count <= Self.maxTrustedCerts else { throw .tooManyTrustedCerts }
         guard trustedCerts.allSatisfy(Validation.digest) else { throw .trustedCert }
-        guard dnsFallback.count <= Self.maxDNSFallback else { throw .tooManyDNSServers }
-        guard dnsFallback.allSatisfy(Validation.ipv4) else { throw .dnsServer }
         self.host = host
         self.port = port
         self.realm = realm
         self.auth = auth
         self.trustedCerts = trustedCerts
-        self.dnsFallback = dnsFallback
+        self.useSystemDNSFallback = useSystemDNSFallback
     }
 
     /// Parses and validates what a caller sent. Unknown or missing keys and wrong types are `.malformed`.
@@ -96,7 +90,7 @@ public struct ConnectRequest: Equatable, Sendable {
 }
 
 extension ConnectRequest: Codable {
-    private enum Keys: String, CodingKey, CaseIterable { case host, port, realm, auth, trustedCerts, dnsFallback }
+    private enum Keys: String, CodingKey, CaseIterable { case host, port, realm, auth, trustedCerts, useSystemDNSFallback }
     private enum AuthKeys: String, CodingKey, CaseIterable { case method, listenPort }
 
     public init(from decoder: Decoder) throws {
@@ -111,7 +105,7 @@ extension ConnectRequest: Codable {
                       realm: try c.decodeIfPresent(String.self, forKey: .realm),
                       auth: .saml(listenPort: try a.decode(Int.self, forKey: .listenPort)),
                       trustedCerts: try c.decode([String].self, forKey: .trustedCerts),
-                      dnsFallback: try c.decode([String].self, forKey: .dnsFallback))
+                      useSystemDNSFallback: try c.decode(Bool.self, forKey: .useSystemDNSFallback))
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -126,7 +120,7 @@ extension ConnectRequest: Codable {
             try a.encode(listenPort, forKey: .listenPort)
         }
         try c.encode(trustedCerts, forKey: .trustedCerts)
-        try c.encode(dnsFallback, forKey: .dnsFallback)
+        try c.encode(useSystemDNSFallback, forKey: .useSystemDNSFallback)
     }
 }
 

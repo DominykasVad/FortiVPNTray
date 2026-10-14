@@ -20,7 +20,7 @@ struct ConnectRequestTests {
     private func object() -> [String: Any] {
         ["host": "vpn.example.com", "port": 8443, "realm": "staff",
          "auth": ["method": "saml", "listenPort": 8020],
-         "trustedCerts": [cert], "dnsFallback": ["192.0.2.53"]]
+         "trustedCerts": [cert], "useSystemDNSFallback": true]
     }
 
     private func decode(_ object: Any) throws(Rejection) -> ConnectRequest {
@@ -28,13 +28,13 @@ struct ConnectRequestTests {
     }
 
     @Test func testValidRequest() throws {
-        let request = try ConnectRequest(host: "vpn.example.com", port: 8443, realm: "staff", trustedCerts: [cert], dnsFallback: ["192.0.2.53"])
+        let request = try ConnectRequest(host: "vpn.example.com", port: 8443, realm: "staff", trustedCerts: [cert])
         #expect(request.auth == .saml(listenPort: 8020))
         #expect(try ConnectRequest(json: request.json()) == request)
         #expect(try decode(object()) == request)
         // Optional parts may be absent; the realm may be null or missing.
         let minimal = try ConnectRequest(host: "192.0.2.1", port: 443)
-        #expect(minimal.realm == nil && minimal.trustedCerts.isEmpty && minimal.dnsFallback.isEmpty)
+        #expect(minimal.realm == nil && minimal.trustedCerts.isEmpty && minimal.useSystemDNSFallback)
         #expect(try ConnectRequest(json: minimal.json()) == minimal)
         var object = object()
         object["realm"] = NSNull()
@@ -44,7 +44,7 @@ struct ConnectRequestTests {
     }
 
     @Test func testWireFormat() throws {
-        let request = try ConnectRequest(host: "vpn.example.com", port: 8443, realm: "staff", trustedCerts: [cert], dnsFallback: ["192.0.2.53"])
+        let request = try ConnectRequest(host: "vpn.example.com", port: 8443, realm: "staff", trustedCerts: [cert])
         let parsed = try #require(try JSONSerialization.jsonObject(with: request.json()) as? NSDictionary)
         #expect(parsed == object() as NSDictionary)
     }
@@ -96,17 +96,17 @@ struct ConnectRequestTests {
         }
     }
 
-    @Test func testDNSFallbackRejected() {
-        for bad in ["dns.example.com", "010.0.0.1", "192.0.2.256", "192.0.2.53\n", "", "::1"] {
-            expectRejected(.dnsServer) { () throws(Rejection) in
-                try ConnectRequest(host: "vpn.example.com", port: 443, dnsFallback: ["192.0.2.53", bad])
-            }
-        }
-        let four = ["192.0.2.1", "192.0.2.2", "198.51.100.1", "198.51.100.2"]
-        #expect(throws: Never.self) { try ConnectRequest(host: "vpn.example.com", port: 443, dnsFallback: four) }
-        expectRejected(.tooManyDNSServers) { () throws(Rejection) in
-            try ConnectRequest(host: "vpn.example.com", port: 443, dnsFallback: four + ["198.51.100.3"])
-        }
+    @Test func testDNSFallbackIsOnlyAFlag() throws {
+        #expect(try ConnectRequest(host: "vpn.example.com", port: 443).useSystemDNSFallback)
+        let off = try ConnectRequest(host: "vpn.example.com", port: 443, useSystemDNSFallback: false)
+        #expect(!off.useSystemDNSFallback)
+        #expect(try ConnectRequest(json: off.json()) == off)
+        // Resolver addresses from the caller are refused, alone or next to the flag.
+        var object = object()
+        object["dnsFallback"] = ["192.0.2.53"]
+        expectRejected(.malformed) { () throws(Rejection) in try decode(object) }
+        object["useSystemDNSFallback"] = nil
+        expectRejected(.malformed) { () throws(Rejection) in try decode(object) }
     }
 
     @Test func testDecodedRequestsAreValidated() {
@@ -116,8 +116,6 @@ struct ConnectRequestTests {
             ("auth", ["method": "saml", "listenPort": 80], .samlListenPort),
             ("trustedCerts", [cert.uppercased()], .trustedCert),
             ("trustedCerts", Array(repeating: cert, count: 17), .tooManyTrustedCerts),
-            ("dnsFallback", ["010.0.0.1"], .dnsServer),
-            ("dnsFallback", Array(repeating: "192.0.2.1", count: 5), .tooManyDNSServers),
         ]
         for (key, value, expected) in cases {
             var object = object()
@@ -138,14 +136,15 @@ struct ConnectRequestTests {
             { $0["host"] = nil },
             { $0["port"] = nil },
             { $0["trustedCerts"] = nil },
-            { $0["dnsFallback"] = nil },
+            { $0["useSystemDNSFallback"] = nil },
             { $0["port"] = "8443" },
             { $0["port"] = 8443.5 },
             { $0["port"] = true },
             { $0["host"] = ["vpn.example.com"] },
             { $0["realm"] = 7 },
             { $0["trustedCerts"] = cert },
-            { $0["dnsFallback"] = [1] },
+            { $0["useSystemDNSFallback"] = 1 },
+            { $0["useSystemDNSFallback"] = "true" },
         ]
         for mutate in mutations {
             var object = object()
@@ -167,7 +166,7 @@ struct ConnectRequestTests {
     @Test func testRejectionDescriptionsAreFixedAndDistinct() {
         // Cases carry no values, so a description can never echo what the caller sent.
         let all: [Rejection] = [.tooLarge, .malformed, .host, .port, .realm, .samlListenPort, .trustedCert,
-                                .tooManyTrustedCerts, .dnsServer, .tooManyDNSServers]
+                                .tooManyTrustedCerts]
         #expect(Set(all.map(\.description)).count == all.count)
     }
 
