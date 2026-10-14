@@ -109,6 +109,11 @@ final class AppModel: ObservableObject {
                         case .connected(let address): phase = .connected; ip = address; since = since ?? Date(); samlURL = nil
                         case .disconnected: appendLog("The tunnel is down; waiting for process cleanup.")
                         case .saml(let url):
+                            // Checked again right before the browser gets it (PLAN.md 3.1).
+                            guard let validated = try? profile.validated(), SAMLLogin.isExpected(url, host: validated.host, port: validated.port) else {
+                                appendLog("ERROR:  Refused to open an unexpected login URL.")
+                                continue
+                            }
                             phase = .waiting; samlURL = url
                             NSWorkspace.shared.open(url)
                         case .certificate(let digest): certificate = CertificatePrompt(profileID: profile.id, digest: digest)
