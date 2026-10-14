@@ -21,7 +21,7 @@ helper is safe even when a hostile process runs as the logged-in user.
 
 ## Status
 
-**Current phase: 3**, starting with 3.0. Phases 0–2 are done (all tasks merged).
+**Current phase: 4**, starting with 4.1. Phases 0–3 are done (all tasks merged).
 How to work (branches, commits, definition of done, hard rules): see
 `AGENTS.md`. Each phase ends with a
 **task list**; one task = one sub-phase = one branch = one PR. Tick the box in
