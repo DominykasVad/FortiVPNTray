@@ -177,5 +177,5 @@ build dependencies without asking.
 ## Reference
 
 - `PLAN.md` — phases, tasks, findings F1–F11, decision log, open questions.
-- `README.md`, `native/README.md` — behaviour and build details (upstream text until 3.3).
+- `README.md`, `native/README.md` — behaviour and build details.
 - `docs/signing.md` — local signing identity (from task 0.2).

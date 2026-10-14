@@ -111,12 +111,14 @@ public struct HelperInstallationStatus: Equatable, Sendable {
         case .missing: return "Install the helper to connect to a VPN."
         case .incomplete: return "Helper files are incomplete. Repair the installation."
         case .unavailable: return "The helper is installed, but could not be reached. Try Refresh or Repair."
-        case .ready:
-            let version = "Version \(helper?.version ?? "") · \(helper?.mode.title ?? "")"
-            return helper?.mode == .uidOnly ? "\(version) · \(Self.uidOnlyWarning)" : "\(version) · Ready to connect."
+        case .ready: return "Version \(helper?.version ?? "") · Ready to connect."
         case .versionMismatch: return "The helper speaks protocol \(helper?.protocolVersion ?? 0); this app requires protocol \(HelperTransport.protocolVersion). Repair the installation."
         }
     }
+    /// Which callers the running helper accepts (PLAN.md 2.1, 3.3), nil if it did not answer.
+    public var callerCheck: String? { helper.map { "Caller check: \($0.mode.title)" } }
+    /// UID-only must stand out: any process of this user can then use the helper.
+    public var callerCheckIsWeak: Bool { helper?.mode == .uidOnly }
     /// Shown whenever the helper runs without the signed caller check.
     public static let uidOnlyWarning = "This app is ad-hoc signed, so the helper accepts any process running as you. Build with the local signing identity (docs/signing.md) and repair the helper."
     public static func inspect() -> Self {
