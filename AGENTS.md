@@ -41,7 +41,7 @@ explicitly. Anything not in PLAN.md is **out of scope**.
 ```
 native/
   Package.swift
-  Sources/FortiVPNCore/   models, storage, Keychain, log parsing, helper client, VPNEngine
+  Sources/FortiVPNCore/   models, storage, helper client and installer, VPNEngine
   Sources/FortiVPNTray/   SwiftUI + AppKit UI
   Sources/FortiVPNShared/ constants, protocol types, validators, log parsing
   Sources/FortiVPNHelper/ root helper (XPC, launches openfortivpn, routes/DNS cleanup)

@@ -96,6 +96,16 @@ struct CoreTests {
         }
         p = profile(); p.host = "192.0.2.1"; expectNoThrow(try p.validated())
     }
+    @Test func testRealmIsTrimmedEmptiedOrRefused() throws {
+        var p = profile(); p.realm = "  staff "
+        expectEqual(try p.validated().realm, "staff")
+        p.realm = "   "; expectNil(try p.validated().realm)
+        p.realm = ""; expectNil(try p.validated().realm)
+        // Surrounding whitespace is trimmed; anything inside the realm must be valid.
+        for realm in ["sta ff", "sta\nff", "staff=1", String(repeating: "r", count: 64)] {
+            p.realm = realm; expectThrows(try p.validated())
+        }
+    }
     @Test func testProfileTrustedCertsAreLowercased() throws {
         // The helper only accepts lowercase fingerprints; saved or pasted uppercase ones keep working.
         var p = profile(); p.trustedCerts = [String(repeating: "AB", count: 32)]
@@ -198,85 +208,11 @@ struct CoreTests {
         let safe = LogParser.redacted("password=secret cookie: token123 https://vpn.example.com/?token=123")
         expectFalse(safe.contains("secret")); expectFalse(safe.contains("token123")); expectFalse(safe.contains("token=123"))
     }
-    @Test func testLogBufferHandlesPartialUTF8() {
-        var buffer = LogBuffer()
-        let bytes = Data("连接中\nnext\n".utf8)
-        expectEqual(buffer.append(bytes.prefix(2)), [])
-        expectEqual(buffer.append(bytes.dropFirst(2)), ["连接中", "next"])
-    }
     @Test func testTunnelDownAndLastError() {
         var parser = LogParser()
         _ = parser.consume("ERROR: Authentication failed")
         expectEqual(parser.lastError, "ERROR: Authentication failed")
         expectEqual(parser.consume("INFO: Tunnel is down"), [.disconnected])
-    }
-    @Test func testHelperUnavailableIsActionable() {
-        expectThrows(try HelperClient(socketPath: "/tmp/missing-\(UUID().uuidString)").version()) {
-            expectTrue($0.localizedDescription.contains("Helper unavailable"))
-        }
-    }
-    @Test func testHelperProtocolAndFragmentedResponse() throws {
-        try withServer(reply: #"{"ok":true,"pid":1234,"version":"0.1.9"}"#) { client, request in
-            let response = try client.request(["cmd": "spawn-vpn", "args": ["vpn.example.com:8443", "-p", "quoted ' password"]])
-            expectEqual(response.pid, 1234)
-            let fields = try request()
-            expectEqual(fields["cmd"] as? String, "spawn-vpn")
-            expectEqual((fields["args"] as? [String])?.last, "quoted ' password")
-        }
-    }
-    @Test func testHelperRejectionPropagates() throws {
-        try withServer(reply: #"{"ok":false,"error":"Blocked argument"}"#) { client, _ in
-            expectThrows(try client.version()) { expectEqual($0.localizedDescription, "Blocked argument") }
-        }
-    }
-    @Test func testHelperMalformedResponseFails() throws {
-        try withServer(reply: "not-json") { client, _ in expectThrows(try client.version()) }
-    }
-    private func withServer(reply: String, body: (HelperClient, () throws -> [String: Any]) throws -> Void) throws {
-        let path = "/tmp/native-vpn-test-\(UUID().uuidString).sock"
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        expectAtLeast(fd, 0)
-        defer { close(fd); unlink(path) }
-        var addr = sockaddr_un(); addr.sun_family = sa_family_t(AF_UNIX)
-        addr.sun_len = UInt8(MemoryLayout<sockaddr_un>.size)
-        withUnsafeMutableBytes(of: &addr.sun_path) { buffer in Array(path.utf8CString).withUnsafeBytes { buffer.copyBytes(from: $0) } }
-        let bound = withUnsafePointer(to: &addr) { $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { Darwin.bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) } }
-        guard bound == 0, listen(fd, 1) == 0 else { throw VPNError("Could not bind test socket: \(errno)") }
-        // @unchecked Sendable: only the server thread writes `data`, and the test reads it
-        // only after `done` is signalled, so the two never touch it at the same time.
-        final class RequestBox: @unchecked Sendable { var data = Data() }
-        let box = RequestBox()
-        let done = DispatchSemaphore(value: 0)
-        // The client uses blocking socket I/O. A dispatch global queue can share
-        // the constrained Swift Testing executor and starve on small CI runners.
-        // A dedicated OS thread keeps the mock server independent of test tasks.
-        Thread.detachNewThread {
-            defer { done.signal() }
-            let peer = accept(fd, nil, nil)
-            guard peer >= 0 else { return }
-            defer { close(peer) }
-            var noSignal: Int32 = 1
-            setsockopt(peer, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
-            var buffer = [UInt8](repeating: 0, count: 4096)
-            while !box.data.contains(10) {
-                let n = read(peer, &buffer, buffer.count)
-                if n <= 0 { break }
-                box.data.append(contentsOf: buffer.prefix(n))
-            }
-            for byte in Array((reply + "\n").utf8) {
-                var value = byte
-                // If a timed-out client has closed, let its assertion report the
-                // failure instead of killing every test with SIGPIPE.
-                guard write(peer, &value, 1) == 1 else { return }
-            }
-        }
-        var waited = false
-        defer { if !waited { _ = done.wait(timeout: .now() + 3) } }
-        try body(HelperClient(socketPath: path)) {
-            guard done.wait(timeout: .now() + 3) == .success else { throw VPNError("Mock helper did not finish.") }
-            waited = true
-            return try JSONSerialization.jsonObject(with: box.data) as! [String: Any]
-        }
     }
 }
 

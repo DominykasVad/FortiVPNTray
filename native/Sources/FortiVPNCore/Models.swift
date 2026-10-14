@@ -37,10 +37,15 @@ public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
         var result = self
         result.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         result.host = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        let realm = realm?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        result.realm = realm.isEmpty ? nil : realm
         // The helper accepts lowercase fingerprints only; stored or pasted uppercase ones are normalised here.
         result.trustedCerts = trustedCerts.map { $0.lowercased() }
         guard !result.name.isEmpty, Validation.host(result.host), (1...65535).contains(port) else {
             throw VPNError("Enter a name, a hostname or IPv4 address, and a port between 1 and 65535.")
+        }
+        guard result.realm.map(Validation.realm) != false else {
+            throw VPNError("A realm may only contain letters, digits, '.', '_' and '-', at most 63 of them.")
         }
         guard !id.isEmpty, result.trustedCerts.allSatisfy(Validation.digest) else {
             throw VPNError("Each trusted certificate must be a 64-character SHA256 fingerprint.")

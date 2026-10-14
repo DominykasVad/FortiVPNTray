@@ -67,20 +67,3 @@ public struct LogParser {
         return String(line[range])
     }
 }
-
-/// Accumulates incomplete UTF-8 lines between polling reads without corrupting characters.
-public struct LogBuffer {
-    private var bytes = Data()
-    public init() {}
-    public mutating func append(_ data: Data) -> [String] {
-        bytes.append(data)
-        var lines: [String] = []
-        while let end = bytes.firstIndex(of: 10) {
-            lines.append(String(decoding: bytes[..<end], as: UTF8.self))
-            bytes.removeSubrange(...end)
-        }
-        // Bound memory even if the child produces an unterminated malformed line.
-        if bytes.count > 1_048_576 { bytes.removeAll() }
-        return lines
-    }
-}

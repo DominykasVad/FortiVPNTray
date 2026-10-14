@@ -6,7 +6,17 @@ import FortiVPNShared
 /// The app's XPC client against a fake helper on an anonymous listener.
 struct HelperXPCClientTests {
     /// Answers like the helper; `silent` never replies.
-    private final class FakeHelper: NSObject, HelperXPCProtocol, NSXPCListenerDelegate {
+    private final class FakeHelper: NSObject, HelperXPCProtocol, NSXPCListenerDelegate, @unchecked Sendable {
+        // @unchecked Sendable: `_accepted` and `_received` are only touched while holding `lock`.
+        private let lock = NSLock()
+        private var _accepted = 0
+        private var _received: [Data] = []
+        var accepted: Int { lock.withLock { _accepted } }
+        var receivedRequests: [Data] { lock.withLock { _received } }
+        var connectReply: (String?, String?) = ("6F0E6A5C-8E4B-4C1E-9D7A-2B3C4D5E6F70", nil)
+        var disconnectError: String?
+        var logReply: (Data?, String?) = (HelperWire.encode(LogChunk(lines: ["INFO:   Connected to gateway."], nextOffset: 1)), nil)
+        var samlURL: String?
         let mode: String
         let status: Data
         let silent: Bool
@@ -21,6 +31,7 @@ struct HelperXPCClientTests {
             connection.exportedInterface = NSXPCInterface(with: HelperXPCProtocol.self)
             connection.exportedObject = self
             connection.resume()
+            lock.withLock { _accepted += 1 }
             return true
         }
 
@@ -30,10 +41,13 @@ struct HelperXPCClientTests {
         func status(reply: @escaping @Sendable (Data) -> Void) {
             if !silent { reply(status) }
         }
-        func connect(_ request: Data, reply: @escaping @Sendable (String?, String?) -> Void) { reply(nil, "unused") }
-        func disconnect(reply: @escaping @Sendable (String?) -> Void) { reply(nil) }
-        func readLog(sessionID: String, offset: Int, reply: @escaping @Sendable (Data?, String?) -> Void) { reply(nil, "unused") }
-        func pendingSAMLURL(reply: @escaping @Sendable (String?) -> Void) { reply(nil) }
+        func connect(_ request: Data, reply: @escaping @Sendable (String?, String?) -> Void) {
+            lock.withLock { _received.append(request) }
+            reply(connectReply.0, connectReply.1)
+        }
+        func disconnect(reply: @escaping @Sendable (String?) -> Void) { reply(disconnectError) }
+        func readLog(sessionID: String, offset: Int, reply: @escaping @Sendable (Data?, String?) -> Void) { reply(logReply.0, logReply.1) }
+        func pendingSAMLURL(reply: @escaping @Sendable (String?) -> Void) { reply(samlURL) }
     }
 
     /// A client and the listener it talks to. The listener holds its delegate weakly,
@@ -111,5 +125,52 @@ struct HelperXPCClientTests {
         let result = await offPool { try client.version() }
         #expect(result == .failure(VPNError("Helper unavailable. Install or repair it in Settings.")))
         #expect(Date().timeIntervalSince(began) < 4)
+    }
+
+    @Test func testConnectSendsTheRequestAsJSON() async throws {
+        let fixture = fixture(FakeHelper())
+        defer { fixture.invalidate() }
+        let client = fixture.client
+        let request = try ConnectRequest(host: "vpn.example.com", port: 443, realm: "staff")
+        #expect(await offPool { try client.connect(request) } == .success("6F0E6A5C-8E4B-4C1E-9D7A-2B3C4D5E6F70"))
+        #expect(fixture.helper.receivedRequests.count == 1)
+        #expect(try ConnectRequest(json: fixture.helper.receivedRequests[0]) == request)
+    }
+
+    @Test func testHelperErrorsReachTheCaller() async throws {
+        let helper = FakeHelper()
+        helper.connectReply = (nil, "A session is already active.")
+        helper.disconnectError = "Nope."
+        helper.logReply = (nil, "Unknown session.")
+        let fixture = fixture(helper)
+        defer { fixture.invalidate() }
+        let client = fixture.client
+        let request = try ConnectRequest(host: "vpn.example.com", port: 443)
+        #expect(await offPool { try client.connect(request) } == .failure(VPNError("A session is already active.")))
+        #expect(await offPool { try client.disconnect() }.map { "ok" } == .failure(VPNError("Nope.")))
+        #expect(await offPool { try client.readLog(sessionID: "x", offset: 0) } == .failure(VPNError("Unknown session.")))
+    }
+
+    @Test func testReadLogAndPendingSAMLURL() async {
+        let helper = FakeHelper()
+        helper.samlURL = "https://vpn.example.com:443/remote/saml/start?redirect=1"
+        let fixture = fixture(helper)
+        defer { fixture.invalidate() }
+        let client = fixture.client
+        #expect(await offPool { try client.readLog(sessionID: "x", offset: 0) } == .success(LogChunk(lines: ["INFO:   Connected to gateway."], nextOffset: 1)))
+        #expect(await offPool { try client.pendingSAMLURL() } == .success(URL(string: "https://vpn.example.com:443/remote/saml/start?redirect=1")))
+        #expect(await offPool { try client.disconnect() }.map { "ok" } == .success("ok"))
+    }
+
+    /// Polling must not open a connection (and make the helper check the caller) per call.
+    @Test func testOneConnectionIsReused() async {
+        let fixture = fixture(FakeHelper())
+        defer { fixture.invalidate() }
+        let client = fixture.client
+        for _ in 0..<5 {
+            _ = await offPool { try client.status() }
+            _ = await offPool { try client.readLog(sessionID: "x", offset: 0) }
+        }
+        #expect(fixture.helper.accepted == 1)
     }
 }

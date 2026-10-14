@@ -18,7 +18,6 @@ struct IdentityTests {
         #expect(AppIdentity.helperRunDirectory == "/Library/Application Support/eu.dvad.fortivpntray.helper/run")
         #expect(AppIdentity.helperStateFile == "/Library/Application Support/eu.dvad.fortivpntray.helper/state.json")
         #expect(AppIdentity.dnsServiceKey == "State:/Network/Service/eu.dvad.fortivpntray/DNS")
-        #expect(AppIdentity.sessionLogPrefix == "/tmp/eu.dvad.fortivpntray-")
     }
 
     @Test func testInfoPlistBundleIdentifierMatches() throws {
