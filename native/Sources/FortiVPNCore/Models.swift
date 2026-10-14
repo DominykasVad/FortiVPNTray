@@ -14,6 +14,9 @@ public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
     public var port = 8443
     public var realm: String? = nil
     public var trustedCerts: [String] = []
+    /// Where the SAML login page opens (PLAN.md 3.5): false = the app's own login window,
+    /// true = the default browser. App-side only; never sent to the helper.
+    public var samlExternalBrowser = false
     public init() {}
     /// SAML is the only authentication method (decision log, 1.3). Profiles written
     /// before 3.0 may still carry `auth_type` and `username`, and before 3.2
@@ -21,6 +24,7 @@ public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id, name, host, port, realm
         case trustedCerts = "trusted_certs"
+        case samlExternalBrowser = "saml_external_browser"
     }
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -30,6 +34,7 @@ public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
         port = try c.decode(Int.self, forKey: .port)
         realm = try c.decodeIfPresent(String.self, forKey: .realm)
         trustedCerts = try c.decodeIfPresent([String].self, forKey: .trustedCerts) ?? []
+        samlExternalBrowser = try c.decodeIfPresent(Bool.self, forKey: .samlExternalBrowser) ?? false
     }
     public func validated() throws -> VPNProfile {
         var result = self
