@@ -273,7 +273,7 @@ it. Version check compares **protocol** version.
 ### Tasks — phase 2
 - [x] **2.0** Package layout: `FortiVPNShared` gets protocol types, validators, `LogParser`/`LogBuffer` (moves only, no behaviour change).
 - [x] **2.1** Transport + caller check.
-- [ ] **2.2** API + `ConnectRequest` validation, with tests for every rejection rule.
+- [x] **2.2** API + `ConnectRequest` validation, with tests for every rejection rule.
 - [ ] **2.3** Spawning: config writer, argv builder, binary/dylib ownership checks.
 - [ ] **2.4** Logs: ring buffer + redaction.
 - [ ] **2.5** DNS, routes, cleanup, state file.
@@ -360,6 +360,9 @@ supersede it with a new one that names the old.
 - 2026-10-13 · 1.3 · Password authentication dropped; SAML is the only auth method · the gateway uses SAML/Entra; removes Keychain handling, password transport to root and F9 entirely.
 - 2026-10-13 · 1.3 · Child argv is fixed (`-c <file> -v` + helper-chosen flags without a config key); host, port, realm, trusted certs etc. only in the validated config file · nothing caller-derived reaches argv; S3 showed -c fully replaces the default config.
 - 2026-10-13 · 2.1 · UID-only mode needs an explicit `--uid-only` launch argument; `--allowed-uid` without `--client-req-leaf` or `--uid-only` is an error · a damaged or hand-edited plist must not silently start the helper with the weaker caller check.
+- 2026-10-14 · 2.2 · Structured XPC values (`ConnectRequest`, `HelperStatus`, `LogChunk`) travel as JSON `Data`; the helper decodes strictly (unknown or missing keys, wrong types, over 16 KiB → rejected) and validation runs inside decoding · one parser for hostile input, no NSSecureCoding classes in root, and a decoded request is always a valid one.
+- 2026-10-14 · 2.2 · Trusted-cert fingerprints are lowercase only at the helper (`^[0-9a-f]{64}$`); the app lowercases before validating and sending · the helper applies the plan's rule as written and does no normalising of caller input.
+- 2026-10-14 · 2.2 · `--allowed-uid 0` is rejected by both the launch-argument builder and parser · the helper serves one logged-in user; a 0 most likely means the installer took the UID of `sudo`.
 
 ## Open questions
 

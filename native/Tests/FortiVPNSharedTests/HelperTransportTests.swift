@@ -43,8 +43,8 @@ struct HelperTransportTests {
         let signed = try Arguments(allowedUID: 501, callerCheck: .signed(leafSHA1: hash.lowercased()))
         #expect(signed.arguments == ["--allowed-uid", "501", "--client-req-leaf", hash])
         #expect(try Arguments(parsing: signed.arguments) == signed)
-        let uidOnly = try Arguments(allowedUID: 0, callerCheck: .uidOnly)
-        #expect(uidOnly.arguments == ["--allowed-uid", "0", "--uid-only"])
+        let uidOnly = try Arguments(allowedUID: 502, callerCheck: .uidOnly)
+        #expect(uidOnly.arguments == ["--allowed-uid", "502", "--uid-only"])
         #expect(try Arguments(parsing: uidOnly.arguments) == uidOnly)
         #expect(throws: Arguments.ParseError.self) { try Arguments(allowedUID: 501, callerCheck: .signed(leafSHA1: "abc")) }
     }
@@ -63,6 +63,13 @@ struct HelperTransportTests {
             expectRejected(["--allowed-uid", uid, "--uid-only"], "is not a user id")
         }
         expectRejected(["--uid-only", "--allowed-uid"], "needs a value")
+    }
+
+    @Test func testRootUIDRejected() {
+        expectRejected(["--allowed-uid", "0", "--uid-only"], "must not be 0")
+        expectRejected(["--allowed-uid", "0", "--client-req-leaf", hash], "must not be 0")
+        #expect(throws: Arguments.ParseError.self) { try Arguments(allowedUID: 0, callerCheck: .uidOnly) }
+        #expect(throws: Arguments.ParseError.self) { try Arguments(allowedUID: 0, callerCheck: .signed(leafSHA1: hash)) }
     }
 
     @Test func testBadHashesRejected() {
