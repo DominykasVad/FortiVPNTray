@@ -380,6 +380,16 @@ it. Version check compares **protocol** version.
 - [ ] **3.2** Delete `GatewayCertificate` / `ignoreCertErrors` (decode-and-drop); cert-pin flow from helper events.
 - [ ] **3.3** Settings shows caller-check mode; README + native/README updated.
 - [ ] **3.4** openfortivpn update check + Update action (runs through the admin-prompt install path, like Repair — **not** a new helper API call: a same-user caller must not be able to trigger a re-copy).
+- [ ] **3.5** SAML login window, chosen per profile like FortiClient: a profile setting
+  "Use external browser for SAML" (default off).
+  - Off (embedded): ASWebAuthenticationSession (no entitlement;
+    prefersEphemeralWebBrowserSession = false, so the Safari/Entra session and "stay signed in"
+    are shared). The redirect to 127.0.0.1:<listen port> is loaded by the window and reaches
+    openfortivpn as before; the app closes the window when the helper reports connected, on
+    disconnect or failure; user cancel → disconnect.
+  - On (external): NSWorkspace.open in the default browser, as now.
+  - Both only with a URL that passes SAMLLogin.isExpected. The setting is app-side only and
+    never sent to the helper. Old profiles decode with the default. Decision-log line.
 
 **Review checkpoint 3.**
 
