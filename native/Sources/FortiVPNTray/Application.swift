@@ -244,14 +244,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         var additional = VPNProfile()
         additional.name = "Additional VPN"
         additional.host = "vpn.example.com"
-        additional.authType = .saml
         checks["connectedAllowsNewProfile"] = model.maySave(additional) && !model.mayEdit
         do {
-            try model.save(additional, password: "")
+            try model.save(additional)
             checks["connectedProfileSaved"] = model.profiles.contains(additional)
             checks["savePreservesSessionAndSelection"] = model.activeID == fixture.id && model.selectedID == fixture.id && model.phase == .connected
             do {
-                try model.save(additional, password: "")
+                try model.save(additional)
                 checks["connectedExistingProfileSaveBlocked"] = false
             } catch { checks["connectedExistingProfileSaveBlocked"] = true }
             model.delete(additional)
@@ -260,7 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             var blocked = VPNProfile()
             blocked.name = "Blocked VPN"; blocked.host = "blocked.example.com"
             do {
-                try model.save(blocked, password: "")
+                try model.save(blocked)
                 checks["unavailableStorageBlocksCreate"] = false
             } catch { checks["unavailableStorageBlocksCreate"] = !model.mayCreateProfile }
             model.storageAvailable = true
@@ -315,7 +314,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         checks["editProfileSnapshot"] = snapshot(editView, name: "edit-profile")
         do {
             additional.name = "Updated VPN"
-            try model.save(additional, password: "")
+            try model.save(additional)
             checks["disconnectedEditingAndSelectionRestored"] = model.mayEdit && model.selectedID == additional.id && model.profiles.contains(additional)
         } catch { checks["disconnectedEditingAndSelectionRestored"] = false }
         let data = try! JSONSerialization.data(withJSONObject: checks, options: [.prettyPrinted, .sortedKeys])

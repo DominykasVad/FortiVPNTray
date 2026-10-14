@@ -24,13 +24,12 @@ public actor VPNEngine {
     private var fallbackDNS: [String] = []
     private var lastProcessCheck = Date.distantPast
     private var isConnected = false
-    private var secret: String?
 
     public var hasSession: Bool { pid != nil }
 
     public init(helper: HelperClient = HelperClient()) { self.helper = helper }
 
-    public func start(profile: VPNProfile, password: String?, settings: AppSettings) async throws {
+    public func start(profile: VPNProfile, settings: AppSettings) async throws {
         guard pid == nil else { throw VPNError("Disconnect the current session before reconnecting.") }
         guard FileManager.default.isExecutableFile(atPath: "/opt/homebrew/bin/openfortivpn") else {
             throw VPNError("Install openfortivpn first: brew install openfortivpn. This build uses the Apple Silicon Homebrew path.")
@@ -43,8 +42,7 @@ public actor VPNEngine {
             if !profile.trustedCerts.contains(digest) { profile.trustedCerts.append(digest) }
         }
         try Task.checkCancellation()
-        let args = try profile.arguments(password: password)
-        secret = password
+        let args = try profile.arguments()
         parser = LogParser()
         buffer = LogBuffer()
         isConnected = false
@@ -76,8 +74,7 @@ public actor VPNEngine {
         guard let pid, let file else { return result }
         let bytes = try file.read(upToCount: 131072) ?? Data()
         for raw in buffer.append(bytes) {
-            let safe = secret.flatMap { $0.isEmpty ? nil : raw.replacingOccurrences(of: $0, with: "[redacted]") } ?? raw
-            result.lines.append(LogParser.redacted(safe))
+            result.lines.append(LogParser.redacted(raw))
             for event in parser.consume(raw) {
                 switch event {
                 case .connected:
@@ -128,7 +125,6 @@ public actor VPNEngine {
         file = nil
         if let logURL { try? FileManager.default.removeItem(at: logURL) }
         logURL = nil
-        secret = nil
     }
     private static func processAlive(_ pid: Int32) -> Bool {
         guard let result = try? Commands.run("/bin/ps", ["-p", String(pid), "-o", "state="]) else { return true }

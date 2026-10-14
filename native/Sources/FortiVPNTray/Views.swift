@@ -287,7 +287,6 @@ struct ProfileEditor: View {
     @ObservedObject var model: AppModel
     @State var profile: VPNProfile
     var onDone: () -> Void
-    @State private var password = ""
     @State private var portText = ""
     @State private var certificates = ""
     @State private var error: String?
@@ -311,20 +310,7 @@ struct ProfileEditor: View {
                         field("Host") { TextField("vpn.example.com", text: $profile.host).modifier(InputStyle()).accessibilityLabel("Host") }
                         field("Port") { TextField("8443", text: $portText).modifier(InputStyle()).accessibilityLabel("Port") }.frame(width: 88)
                     }
-                    field("Authentication") {
-                        Picker("Authentication", selection: $profile.authType) {
-                            Text("Password").tag(AuthType.password)
-                            Text("SAML").tag(AuthType.saml)
-                        }
-                        .pickerStyle(.radioGroup).horizontalRadioGroupLayout().labelsHidden()
-                        .accessibilityIdentifier("profile-authentication")
-                    }
-                    if profile.authType == .password {
-                        field("Username") { TextField("john.doe", text: Binding(get: { profile.username ?? "" }, set: { profile.username = $0 })).modifier(InputStyle()).accessibilityLabel("Username") }
-                        field("Password") { SecureField(isReadOnly ? "Saved password is not displayed" : (isNew ? "Enter password" : "Leave empty to keep current"), text: $password).modifier(InputStyle()).accessibilityLabel("Password") }
-                    } else {
-                        Text("Sign in through your browser when you connect.").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
-                    }
+                    Text("Sign in through your browser (SAML) when you connect.").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
                     field("Realm (optional)") { TextField("optional", text: Binding(get: { profile.realm ?? "" }, set: { profile.realm = $0 })).modifier(InputStyle()).accessibilityLabel("Realm") }
                     Toggle("Ignore certificate errors", isOn: $profile.ignoreCertErrors).font(.system(size: 12)).toggleStyle(.checkbox).disabled(isReadOnly)
                     Text("Trusts whatever certificate the gateway presents. Only use on gateways you control.").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
@@ -342,7 +328,7 @@ struct ProfileEditor: View {
                             guard let port = Int(portText), (1...65535).contains(port) else { throw VPNError("Enter a port between 1 and 65535.") }
                             profile.port = port
                             profile.trustedCerts = lines(certificates)
-                            try model.save(profile, password: password)
+                            try model.save(profile)
                             onDone()
                         } catch { self.error = error.localizedDescription }
                     }.buttonStyle(FilledButton()).keyboardShortcut(.defaultAction).disabled(!model.maySave(profile))
@@ -353,7 +339,7 @@ struct ProfileEditor: View {
         .onAppear { portText = String(profile.port); certificates = profile.trustedCerts.joined(separator: "\n") }
         .confirmationDialog("Delete \(profile.name)?", isPresented: $confirmDelete) {
             Button("Delete Profile", role: .destructive) { model.delete(profile); onDone() }
-        } message: { Text("The saved password will also be removed from Keychain.") }
+        }
     }
     private func field<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -409,7 +395,7 @@ struct SettingsView: View {
                         Button(model.helperRefreshing ? "Checking…" : "Refresh") { model.refreshHelper() }
                             .buttonStyle(.bordered).disabled(model.helperBusy || model.helperRefreshing)
                     }.font(.system(size: 12))
-                    Text("Install and uninstall require macOS administrator permission. Uninstalling preserves your VPN profiles and passwords.")
+                    Text("Install and uninstall require macOS administrator permission. Uninstalling preserves your VPN profiles.")
                         .font(.system(size: 11)).foregroundStyle(Appearance.secondary)
                 }.font(.system(size: 13)).padding(.trailing, 2)
             }
@@ -419,7 +405,7 @@ struct SettingsView: View {
             Button("Uninstall Helper", role: .destructive) { model.manageHelper(install: false) }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("This removes the background connection helper. VPN connections will be unavailable until you reinstall it. Your profiles and saved passwords will be kept. macOS will request administrator permission.")
+            Text("This removes the background connection helper. VPN connections will be unavailable until you reinstall it. Your profiles will be kept. macOS will request administrator permission.")
         }
         .onAppear { if !model.smokeTest { model.refreshHelper() } }
     }
