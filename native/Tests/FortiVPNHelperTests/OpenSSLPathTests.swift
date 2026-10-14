@@ -10,11 +10,13 @@ import Foundation
 /// untrusted gateway certificate, which looks for its issuer in the cert
 /// directory), linked against Homebrew's OpenSSL, under exactly the launcher's
 /// environment, with every file access traced. Needs Homebrew's `openssl@4`
-/// and a C compiler; skipped where they are missing (CI).
+/// and a C compiler. Where they are missing it is skipped, unless
+/// `FVT_REQUIRE_OPENSSL_PROBE=1` (set on CI), which makes that a failure.
 struct OpenSSLPathTests {
     static let openssl = "/opt/homebrew/opt/openssl@4"
     static let available = FileManager.default.fileExists(atPath: openssl + "/include/openssl/ssl.h")
         && FileManager.default.isExecutableFile(atPath: "/usr/bin/cc")
+    static let required = ProcessInfo.processInfo.environment["FVT_REQUIRE_OPENSSL_PROBE"] == "1"
 
     private static let probe = #"""
     #include <stdio.h>
@@ -85,8 +87,12 @@ struct OpenSSLPathTests {
         return (process.terminationStatus, String(decoding: data, as: UTF8.self))
     }
 
-    @Test(.enabled(if: available, "needs Homebrew openssl@4 and cc"))
+    @Test(.enabled(if: available || required, "needs Homebrew openssl@4 and cc; FVT_REQUIRE_OPENSSL_PROBE=1 makes this a failure"))
     func testChildOpenSSLOpensNoHomebrewPath() throws {
+        guard Self.available else {
+            Issue.record("FVT_REQUIRE_OPENSSL_PROBE=1, but \(Self.openssl)/include/openssl/ssl.h or /usr/bin/cc is missing")
+            return
+        }
         let fake = try FakeInstall()
         let work = fake.root + "/probe"
         try FakeInstall.makeDirectory(work)
