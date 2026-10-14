@@ -297,6 +297,34 @@ refuses if Homebrew's openfortivpn is missing, creates
 run/log/state dirs, writes the plist (with `MachServices`, `--allowed-uid`, and
 `--client-req-leaf` or `--uid-only`), `launchctl bootout` + `bootstrap`. Uninstall removes all of
 it. Version check compares **protocol** version.
+- Admin step: the prompt runs one installer script. Every value interpolated into
+  it is validated first (allowed UID: digits, non-zero; leaf SHA-1: 40 hex;
+  everything else constants from `AppIdentity`) and shell-quoted. No caller- or
+  user-supplied strings, no paths from the environment. Paths with spaces
+  (`/Library/Application Support`) quoted everywhere.
+- Allowed UID = the logged-in user running the app (`getuid()` of the app), never
+  the sudo/root UID. Leaf hash = `CodeSignature.leafSHA1OfRunningCode()`; nil →
+  `--uid-only` with a visible warning in the UI. Plist `ProgramArguments` built
+  with `HelperLaunchArguments.arguments` (no hand-written flags).
+- openfortivpn copy (S2, as root inside the script): same procedure as
+  `spikes/openfortivpn-copy`: copy binary + every non-system dylib (found via
+  `otool -L`, not hardcoded), rewrite load paths, re-sign ad-hoc, write
+  `manifest.json` in exactly the format `OpenFortiVPNInstall.verify()` reads,
+  create empty `certs/` (root:wheel 0755). No `ossl-modules` dir. Refuse if
+  Homebrew openfortivpn is missing. After install, the app calls the helper (or
+  runs verify logic) to confirm the install passes `OpenFortiVPNInstall.verify()`;
+  report failure clearly.
+- Replacing the Rust helper: it uses the same label and executable path. Install
+  must bootout it, replace the binary, remove the old socket
+  `/var/run/eu.dvad.fortivpntray.helper.sock` and old log.
+- Uninstall: refuse while a session is active. Removes helper binary, plist,
+  `.d` tree, run dir, state file and its dir, log. bootout first. Leaves profiles
+  alone.
+- Tests: script generation is unit-tested (exact output for signed and uid-only,
+  quoting, refusal of bad values). The script itself is run only by the
+  maintainer. The PR carries a short maintainer test procedure: install,
+  `sudo launchctl print system/eu.dvad.fortivpntray.helper`, owners/modes of the
+  `.d` tree, `verify()`, uninstall, nothing left.
 
 ### Tasks — phase 2
 - [x] **2.0** Package layout: `FortiVPNShared` gets protocol types, validators, `LogParser`/`LogBuffer` (moves only, no behaviour change).
