@@ -22,7 +22,7 @@ the code uses only the fork's identifiers; upstream's
 **This is the primary project.** A separate repository, openfortivpn-connect
 (Tauri, `src-tauri/`, pnpm), is the fallback with its own `PLAN.md` and
 `AGENTS.md`. Identity check before any task: this repo has
-`native/Package.swift` and `helper/Cargo.toml` (until 2.7) and **no**
+`native/Package.swift` and `native/Sources/FortiVPNHelper/` and **no**
 `src-tauri/` or `package.json`. If not, you are in the wrong repo: stop. Never
 apply that repo's plan here, never touch it. If a fix here is also needed there,
 say so in the report.
@@ -43,10 +43,11 @@ native/
   Package.swift
   Sources/FortiVPNCore/   models, storage, Keychain, log parsing, helper client, VPNEngine
   Sources/FortiVPNTray/   SwiftUI + AppKit UI
-  Tests/FortiVPNCoreTests/
+  Sources/FortiVPNShared/ constants, protocol types, validators, log parsing
+  Sources/FortiVPNHelper/ root helper (XPC, launches openfortivpn, routes/DNS cleanup)
+  Tests/                  one test target per source target
   Resources/              Info.plist (bundle id, version), icon
   scripts/                build.sh, test.sh
-helper/                   Rust root helper — replaced by a Swift target in phase 2, deleted in 2.7
 spikes/<name>/            throwaway proofs (PLAN.md phase 1); never wired into the app
 docs/                     releases/, screenshots/, signing.md (phase 0)
 PLAN.md, AGENTS.md
@@ -60,13 +61,11 @@ imports Core or UI code; the UI never talks to the helper except through Core.
 ## Toolchain and commands
 
 macOS 13+, Apple Silicon only (for now). Swift 6 toolchain (Xcode or Command
-Line Tools); Rust stable only while `helper/` exists. Commands run from the
-repo root.
+Line Tools). Commands run from the repo root.
 
 | Task | Command |
 |---|---|
 | Swift tests | `native/scripts/test.sh` |
-| Rust helper tests (until 2.7) | `cargo test --manifest-path helper/Cargo.toml --locked` |
 | Dev build (doesn't replace a running app) | `FORTIVPNTRAY_OUTPUT_DIR="$PWD/native/dist/development" native/scripts/build.sh` |
 | UI smoke test (logged-in session) | `native/dist/development/FortiVPNTray.app/Contents/MacOS/FortiVPNTray --smoke-test` |
 
@@ -77,8 +76,7 @@ build dependencies without asking.
 
 ## Definition of done (every task)
 
-1. `native/scripts/test.sh` passes, `cargo test` passes while `helper/` exists,
-   and the dev build succeeds.
+1. `native/scripts/test.sh` passes and the dev build succeeds.
 2. New or changed behaviour has tests — every validator, parser, config writer
    and argv builder without exception. Do not delete, skip or weaken an existing
    test to make the suite pass; if a test is genuinely wrong, say so and explain.
@@ -103,8 +101,8 @@ build dependencies without asking.
 - Commit as often as useful, push the branch once when the task is ready for
   review and open the PR then. Push again only for review fixes. CI runs on
   pull requests (not drafts) and `main`: `.github/workflows/ci-general.yml`
-  always, `.github/workflows/ci-app.yml` only when `native/`, `helper/` or that
-  workflow file change.
+  always, `.github/workflows/ci-app.yml` only when `native/` or that workflow
+  file changes.
 - A phase's **Review checkpoint** in PLAN.md means: after its last task's PR,
   stop until the owner starts the next phase.
 - One PLAN.md task per change set. No drive-by refactors, renames or

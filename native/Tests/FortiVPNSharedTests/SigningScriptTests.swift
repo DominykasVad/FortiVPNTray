@@ -18,7 +18,6 @@ struct SigningScriptTests {
         try files.createDirectory(at: contents.appendingPathComponent("MacOS"), withIntermediateDirectories: true)
         try files.createDirectory(at: contents.appendingPathComponent("Resources"), withIntermediateDirectories: true)
         try files.copyItem(atPath: "/usr/bin/true", toPath: contents.appendingPathComponent("MacOS/Fake").path)
-        try files.copyItem(atPath: "/usr/bin/true", toPath: contents.appendingPathComponent("Resources/openvpngui-helper").path)
         try files.copyItem(atPath: "/usr/bin/true", toPath: contents.appendingPathComponent("Resources/FortiVPNHelper").path)
         let plist: [String: Any] = ["CFBundleIdentifier": "com.example.fake", "CFBundleExecutable": "Fake", "CFBundlePackageType": "APPL"]
         try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0).write(to: contents.appendingPathComponent("Info.plist"))
@@ -53,7 +52,6 @@ struct SigningScriptTests {
                 #expect(result.output.contains("UID-ONLY"))
                 #expect(!result.output.contains("Leaf certificate SHA-1"))
                 #expect(try signature(app.path).contains("Signature=adhoc"))
-                #expect(try signature(app.appendingPathComponent("Contents/Resources/openvpngui-helper").path).contains("Signature=adhoc"))
                 #expect(try signature(app.appendingPathComponent("Contents/Resources/FortiVPNHelper").path).contains("Signature=adhoc"))
                 #expect(try run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path]).status == 0)
             }

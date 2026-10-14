@@ -334,7 +334,7 @@ it. Version check compares **protocol** version.
 - [x] **2.4** Logs: ring buffer + redaction.
 - [x] **2.5** DNS, routes, cleanup, state file.
 - [x] **2.6** Installer / uninstaller.
-- [ ] **2.7** Delete `helper/` (Rust), its CI step and build steps.
+- [x] **2.7** Delete `helper/` (Rust), its CI step and build steps.
 
 **Review checkpoint 2** — full helper diff.
 

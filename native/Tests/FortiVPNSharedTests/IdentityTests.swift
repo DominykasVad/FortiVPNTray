@@ -5,9 +5,6 @@ import FortiVPNShared
 struct IdentityTests {
     private static let repository = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-    private func source(_ path: String) throws -> String {
-        try String(contentsOf: Self.repository.appendingPathComponent(path), encoding: .utf8)
-    }
 
     @Test func testIdentityIsTheForksNotUpstreams() {
         #expect(AppIdentity.identifier == "eu.dvad.fortivpntray")
@@ -30,22 +27,14 @@ struct IdentityTests {
         #expect(plist["CFBundleIdentifier"] as? String == AppIdentity.identifier)
     }
 
-    @Test func testRustHelperUsesTheSameNames() throws {
-        #expect(try source("helper/src/server.rs").contains("SOCKET_PATH: &str = \"\(AppIdentity.socketPath)\""))
-        #expect(try source("helper/src/validation.rs").contains("s.starts_with(\"\(AppIdentity.sessionLogPrefix)\")"))
-        let handlers = try source("helper/src/handlers.rs")
-        #expect(handlers.contains("set \(AppIdentity.dnsServiceKey)\\n"))
-        #expect(handlers.contains("remove \(AppIdentity.dnsServiceKey)\\n"))
-    }
-
     @Test func testNoUpstreamIdentifiersRemain() throws {
         let upstream = ["com.itstone.fortivpntray", "/var/run/fortivpntray-helper.sock", "/var/log/fortivpntray-helper.log",
                         "State:/Network/Service/FortiVPNTray/DNS", "/tmp/fortivpntray-"]
-        let roots = ["native/Sources", "native/Resources", "native/scripts", "helper/src"]
+        let roots = ["native/Sources", "native/Resources", "native/scripts"]
         var checked = 0
         for root in roots {
             let files = try #require(FileManager.default.enumerator(at: Self.repository.appendingPathComponent(root), includingPropertiesForKeys: nil))
-            for case let url as URL in files where ["swift", "rs", "plist", "sh"].contains(url.pathExtension) {
+            for case let url as URL in files where ["swift", "plist", "sh"].contains(url.pathExtension) {
                 let text = try String(contentsOf: url, encoding: .utf8)
                 checked += 1
                 for name in upstream { #expect(!text.contains(name), "\(url.lastPathComponent) still contains \(name)") }

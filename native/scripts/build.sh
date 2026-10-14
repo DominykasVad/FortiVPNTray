@@ -11,12 +11,12 @@ export MACOSX_DEPLOYMENT_TARGET=13.0
 swift build --package-path "$native_dir" --configuration release --product FortiVPNTray
 swift build --package-path "$native_dir" --configuration release --product FortiVPNHelper
 binary_dir="$(swift build --package-path "$native_dir" --configuration release --show-bin-path)"
-cargo build --manifest-path "$repo_dir/helper/Cargo.toml" --locked --release -p openvpngui-helper
 output_dir="${FORTIVPNTRAY_OUTPUT_DIR:-$native_dir/dist}"
 app_path="$output_dir/FortiVPNTray.app"
 mkdir -p "$app_path/Contents/MacOS" "$app_path/Contents/Resources"
+# Builds before 2.7 bundled the Rust helper; do not carry it over into an existing .app.
+rm -f "$app_path/Contents/Resources/openvpngui-helper"
 cp "$binary_dir/FortiVPNTray" "$app_path/Contents/MacOS/FortiVPNTray"
-cp "$repo_dir/helper/target/release/openvpngui-helper" "$app_path/Contents/Resources/openvpngui-helper"
 cp "$binary_dir/FortiVPNHelper" "$app_path/Contents/Resources/FortiVPNHelper"
 cp "$native_dir/Resources/Info.plist" "$app_path/Contents/Info.plist"
 cp "$native_dir/Resources/icon.icns" "$app_path/Contents/Resources/icon.icns"
