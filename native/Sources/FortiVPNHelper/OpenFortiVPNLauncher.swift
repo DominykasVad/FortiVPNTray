@@ -134,6 +134,10 @@ final class OpenFortiVPNLauncher: TunnelLauncher, @unchecked Sendable {
         if let identity = child.identity {
             processes.stop(identity, first: SIGINT, grace: Self.stopGrace)
         }
+        // A dead child is a zombie until Process reaps it; return only once it is reaped,
+        // so "stopped" means its PID is gone.
+        let deadline = Date().addingTimeInterval(Self.stopGrace)
+        while child.process.isRunning && Date() < deadline { usleep(20_000) }
         runDirectory.remove(child.configName)
         forget(child.process)
     }
