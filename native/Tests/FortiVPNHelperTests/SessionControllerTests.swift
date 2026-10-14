@@ -3,23 +3,28 @@ import Foundation
 import FortiVPNShared
 @testable import FortiVPNHelper
 
-/// A launcher whose child is imaginary: records calls, can fail, can hold `start`
-/// open until released, and lets the test send events as the child would.
+/// A launcher whose child is imaginary: a process in a `FakeProcessTable`. Records
+/// calls, can fail, can hold `start` open until released, and lets the test send
+/// events as the child would.
 final class MockLauncher: TunnelLauncher, @unchecked Sendable {
     // @unchecked Sendable: all fields are only touched while holding `lock`.
     struct Failure: Error, CustomStringConvertible { var description: String { "mock start failed" } }
     enum Call: Equatable { case startEntered(String), startReturned(String), stop(String) }
 
+    static let executable = "/Library/PrivilegedHelperTools/eu.dvad.fortivpntray.helper.d/openfortivpn"
+
+    let processes: FakeProcessTable
     private let lock = NSLock()
     private var _calls: [Call] = []
-    private var _running: Set<String> = []
+    private var _children: [String: ProcessIdentity] = [:]
     private var _onEvent: [String: @Sendable (TunnelEvent) -> Void] = [:]
     private let fails: Bool
     /// When set, `start` signals `entered` and waits for `release` before returning.
     private let gate: (entered: DispatchSemaphore, release: DispatchSemaphore)?
 
-    init(fails: Bool = false, holdsStart: Bool = false) {
+    init(fails: Bool = false, holdsStart: Bool = false, processes: FakeProcessTable = FakeProcessTable()) {
         self.fails = fails
+        self.processes = processes
         gate = holdsStart ? (DispatchSemaphore(value: 0), DispatchSemaphore(value: 0)) : nil
     }
 
@@ -27,39 +32,41 @@ final class MockLauncher: TunnelLauncher, @unchecked Sendable {
     var starts: [String] { calls.compactMap { if case .startReturned(let id) = $0 { return id } else { return nil } } }
     var stops: Int { calls.filter { if case .stop = $0 { return true } else { return false } }.count }
     /// Sessions whose imaginary child is running.
-    var running: Set<String> { lock.withLock { _running } }
+    var running: Set<String> { Set(lock.withLock { _children }.filter { processes.isRunning($0.value) }.keys) }
+    func child(of sessionID: String) -> ProcessIdentity? { lock.withLock { _children[sessionID] } }
 
     func waitUntilStartEntered() -> Bool { gate?.entered.wait(timeout: .now() + 10) == .success }
     func releaseStart() { gate?.release.signal() }
 
     func send(_ event: TunnelEvent, to sessionID: String) {
-        let handler = lock.withLock { () -> (@Sendable (TunnelEvent) -> Void)? in
-            if case .exited = event { _running.remove(sessionID) }
-            return _onEvent[sessionID]
-        }
+        let (handler, child) = lock.withLock { (_onEvent[sessionID], _children[sessionID]) }
+        if case .exited = event, let child { processes.exit(child.pid) }
         handler?(event)
     }
 
-    func start(_ request: ConnectRequest, sessionID: String, onEvent: @escaping @Sendable (TunnelEvent) -> Void) throws {
+    func start(_ request: ConnectRequest, sessionID: String, onEvent: @escaping @Sendable (TunnelEvent) -> Void) throws -> ProcessIdentity? {
         lock.withLock {
             _calls.append(.startEntered(sessionID))
             _onEvent[sessionID] = onEvent
         }
         if fails { throw Failure() }
         // The child is spawned here, before start returns.
-        lock.withLock { _ = _running.insert(sessionID) }
+        let child = processes.spawn(Self.executable)
+        lock.withLock { _children[sessionID] = child }
         if let gate {
             gate.entered.signal()
             _ = gate.release.wait(timeout: .now() + 10)
         }
         lock.withLock { _calls.append(.startReturned(sessionID)) }
+        return child
     }
 
     func stop(sessionID: String) {
-        lock.withLock {
+        let child = lock.withLock { () -> ProcessIdentity? in
             _calls.append(.stop(sessionID))
-            _running.remove(sessionID)
+            return _children[sessionID]
         }
+        if let child { processes.stop(child, first: SIGINT, grace: 0.05) }
     }
 }
 

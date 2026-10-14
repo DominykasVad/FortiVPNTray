@@ -304,7 +304,7 @@ it. Version check compares **protocol** version.
 - [x] **2.2** API + `ConnectRequest` validation, with tests for every rejection rule.
 - [x] **2.3** Spawning: config writer, argv builder, binary/dylib ownership checks.
 - [x] **2.4** Logs: ring buffer + redaction.
-- [ ] **2.5** DNS, routes, cleanup, state file.
+- [x] **2.5** DNS, routes, cleanup, state file.
 - [ ] **2.6** Installer / uninstaller.
 - [ ] **2.7** Delete `helper/` (Rust), its CI step and build steps.
 
@@ -399,6 +399,9 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 2.4 · No on-disk log copy; the session log is in memory only · every file copy is another place unredacted output could end up; the in-memory log covers error reporting.
 - 2026-10-14 · 2.5 · DNS state is read and written through SystemConfiguration (`SCDynamicStore…`), not the `scutil` binary · typed API, nothing to parse, nothing to inject.
 - 2026-10-14 · 2.5 · Flush DNS cache with dscacheutil and SIGHUP to mDNSResponder · dscacheutil alone leaves mDNSResponder's cache, so internal names could resolve to stale VPN answers after disconnect; HUP only flushes, it does not stop the daemon.
+- 2026-10-14 · 2.5 · The default route is restored only while the recorded pppd is still the same running process, besides pointing at the session's ppp interface · once that pppd is gone its interface name can belong to another VPN's pppd, whose default route must stay untouched.
+- 2026-10-14 · 2.5 · A recorded PID that fails the identity check is skipped; the other cleanup steps still run and the state is removed afterwards · a stale host route and the DNS key are exactly what a crashed session leaves, and they are removed by validated value, not by PID.
+- 2026-10-14 · 2.5 · Connect is refused if the state file cannot be saved, and it is saved before openfortivpn is started · without it a helper crash would leave routes and DNS nothing can undo.
 
 ## Open questions
 

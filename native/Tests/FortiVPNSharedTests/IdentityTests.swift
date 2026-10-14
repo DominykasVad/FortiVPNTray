@@ -17,6 +17,7 @@ struct IdentityTests {
         #expect(AppIdentity.helperExecutablePath == "/Library/PrivilegedHelperTools/eu.dvad.fortivpntray.helper")
         #expect(AppIdentity.launchDaemonPlistPath == "/Library/LaunchDaemons/eu.dvad.fortivpntray.helper.plist")
         #expect(AppIdentity.openfortivpnDirectory == "/Library/PrivilegedHelperTools/eu.dvad.fortivpntray.helper.d")
+        #expect(AppIdentity.helperSupportDirectory == "/Library/Application Support/eu.dvad.fortivpntray.helper")
         #expect(AppIdentity.helperRunDirectory == "/Library/Application Support/eu.dvad.fortivpntray.helper/run")
         #expect(AppIdentity.dnsServiceKey == "State:/Network/Service/eu.dvad.fortivpntray/DNS")
         #expect(AppIdentity.sessionLogPrefix == "/tmp/eu.dvad.fortivpntray-")

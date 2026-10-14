@@ -150,7 +150,7 @@ struct CallerCheckTests {
     }
 
     private struct AcceptingLauncher: TunnelLauncher {
-        func start(_ request: ConnectRequest, sessionID: String, onEvent: @escaping @Sendable (TunnelEvent) -> Void) throws {}
+        func start(_ request: ConnectRequest, sessionID: String, onEvent: @escaping @Sendable (TunnelEvent) -> Void) throws -> ProcessIdentity? { nil }
         func stop(sessionID: String) {}
     }
 }
