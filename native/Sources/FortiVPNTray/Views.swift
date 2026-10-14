@@ -312,8 +312,6 @@ struct ProfileEditor: View {
                     }
                     Text("Sign in through your browser (SAML) when you connect.").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
                     field("Realm (optional)") { TextField("optional", text: Binding(get: { profile.realm ?? "" }, set: { profile.realm = $0 })).modifier(InputStyle()).accessibilityLabel("Realm") }
-                    Toggle("Ignore certificate errors", isOn: $profile.ignoreCertErrors).font(.system(size: 12)).toggleStyle(.checkbox).disabled(isReadOnly)
-                    Text("Trusts whatever certificate the gateway presents. Only use on gateways you control.").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
                     DisclosureGroup("Trusted Certificates") {
                         Text("SHA256 fingerprints · one per line").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
                         TextEditor(text: $certificates).font(.system(size: 11, design: .monospaced)).frame(height: 65)

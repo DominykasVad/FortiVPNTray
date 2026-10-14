@@ -1,7 +1,5 @@
 import Foundation
 import Darwin
-import CryptoKit
-import Security
 import FortiVPNShared
 
 public struct PollResult: Sendable {
@@ -52,11 +50,7 @@ public actor VPNEngine {
         guard version.protocolVersion == HelperTransport.protocolVersion else {
             throw VPNError("The helper speaks protocol \(version.protocolVersion); this app requires protocol \(HelperTransport.protocolVersion). Repair the helper in Settings.")
         }
-        var profile = try profile.validated()
-        if profile.ignoreCertErrors {
-            let digest = try await GatewayCertificate.digest(host: profile.host, port: profile.port)
-            if !profile.trustedCerts.contains(digest) { profile.trustedCerts.append(digest) }
-        }
+        let profile = try profile.validated()
         try Task.checkCancellation()
         let request: ConnectRequest
         do {
@@ -139,36 +133,5 @@ public actor VPNEngine {
             cursor = info.ifa_next
         }
         return (0, 0)
-    }
-}
-
-// @unchecked Sendable: URLSession calls the delegate on its own queue while `digest`
-// reads the result; `fingerprint` is the only mutable state and every access holds `lock`.
-private final class GatewayCertificate: NSObject, URLSessionDelegate, @unchecked Sendable {
-    private let lock = NSLock()
-    private var fingerprint: String?
-    func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
-                    completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-           let trust = challenge.protectionSpace.serverTrust,
-           let cert = (SecTrustCopyCertificateChain(trust) as? [SecCertificate])?.first {
-            let digest = SHA256.hash(data: SecCertificateCopyData(cert) as Data).map { String(format: "%02x", $0) }.joined()
-            lock.lock(); fingerprint = digest; lock.unlock()
-        }
-        // Inspect only; never transmit credentials or accept a connection in this probe.
-        completionHandler(.cancelAuthenticationChallenge, nil)
-    }
-    private func result() -> String? { lock.lock(); defer { lock.unlock() }; return fingerprint }
-    static func digest(host: String, port: Int) async throws -> String {
-        let delegate = GatewayCertificate()
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 10
-        configuration.timeoutIntervalForResource = 10
-        let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
-        defer { session.invalidateAndCancel() }
-        guard let url = URL(string: "https://\(host):\(port)/") else { throw VPNError("Invalid gateway URL.") }
-        _ = try? await session.data(from: url)
-        guard let result = delegate.result() else { throw VPNError("Could not obtain the gateway certificate. Check the host and network connection.") }
-        return result
     }
 }
