@@ -139,12 +139,14 @@ struct ConnectRequestTests {
                 expectRejected(field.expected) { () throws(Rejection) in try decode(object) }
             }
         }
-        // A leading '-': refused in the host; a realm keeps it, as it never reaches argv.
+        // A leading '-' is refused in the host and in the realm.
         var object = object()
         object["host"] = "-c/tmp/x"
         expectRejected(.host) { () throws(Rejection) in try decode(object) }
         object = self.object()
         object["realm"] = "-c"
+        expectRejected(.realm) { () throws(Rejection) in try decode(object) }
+        object["realm"] = "staff-2"
         #expect(throws: Never.self) { try decode(object) }
     }
 

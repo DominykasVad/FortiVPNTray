@@ -107,7 +107,7 @@ struct LauncherTests {
     @Test func testConfigIsSAMLOnlyForEveryRequest() throws {
         let requests = [
             try ConnectRequest(host: "192.0.2.1", port: 1),
-            try ConnectRequest(host: "vpn.example.com", port: 65535, realm: "-c", auth: .saml(listenPort: 1024)),
+            try ConnectRequest(host: "vpn.example.com", port: 65535, realm: "staff-2", auth: .saml(listenPort: 1024)),
             try ConnectRequest(host: "vpn.example.com", port: 10443, realm: "staff", trustedCerts: Array(repeating: cert, count: 16),
                                useSystemDNSFallback: false),
         ]
@@ -133,7 +133,7 @@ struct LauncherTests {
     @Test func testChildArgvIsTheSameForEveryRequest() throws {
         let requests = [
             try ConnectRequest(host: "192.0.2.1", port: 443),
-            try ConnectRequest(host: "vpn.example.com", port: 10443, realm: "-c", auth: .saml(listenPort: 9000), trustedCerts: [cert]),
+            try ConnectRequest(host: "vpn.example.com", port: 10443, realm: "staff-2", auth: .saml(listenPort: 9000), trustedCerts: [cert]),
         ]
         for request in requests {
             let fake = try FakeInstall()

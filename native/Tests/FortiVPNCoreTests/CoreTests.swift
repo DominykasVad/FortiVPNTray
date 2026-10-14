@@ -106,7 +106,7 @@ struct CoreTests {
         p.realm = "   "; expectNil(try p.validated().realm)
         p.realm = ""; expectNil(try p.validated().realm)
         // Surrounding whitespace is trimmed; anything inside the realm must be valid.
-        for realm in ["sta ff", "sta\nff", "staff=1", String(repeating: "r", count: 64)] {
+        for realm in ["sta ff", "sta\nff", "staff=1", "-staff", String(repeating: "r", count: 64)] {
             p.realm = realm; expectThrows(try p.validated())
         }
     }

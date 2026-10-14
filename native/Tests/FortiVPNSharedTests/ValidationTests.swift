@@ -104,15 +104,18 @@ struct ValidationTests {
         #expect(!Validation.host("192.0.2.1\n") && !Validation.host("\u{FF11}92.0.2.1"))
     }
 
-    /// A leading `-` would read as an option in argv. Hosts and digests refuse it. A realm
-    /// may start with one: realms only go into the config file and the SAML URL, never into
-    /// argv, which is fixed (decision log, 1.3), and `-` is one of its allowed characters.
+    /// A leading `-` would read as an option in argv. Every validator refuses it, the realm
+    /// too, although realms never reach argv (decision log, 4.1); inside a value `-` stays allowed
+    /// where it was.
     @Test func testLeadingHyphen() {
         for value in ["-vpn.example.com", "-c", "--saml-login", "-192.0.2.1"] {
             #expect(!Validation.hostname(value) && !Validation.ipv4(value) && !Validation.host(value), "\(value)")
         }
         #expect(!Validation.digest("-" + String(repeating: "a", count: 63)))
-        #expect(Validation.realm("-staff") && Validation.realm("--c"))
+        for realm in ["-staff", "--c", "-", "-c"] {
+            #expect(!Validation.realm(realm), "\(realm)")
+        }
+        #expect(Validation.realm("staff-2") && Validation.realm("staff-") && Validation.realm("_staff"))
     }
 
     @Test func testOverlongValuesAreRejectedByEveryValidator() {
