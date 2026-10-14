@@ -451,6 +451,7 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 2.6 · Uninstall is refused if the helper reports a session over XPC, and the script also refuses while the state file exists · removing the helper mid-session would leave routes and DNS nobody cleans up; the state-file check works even when the helper cannot be asked.
 - 2026-10-14 · 3.1 · The app takes connected/ended from the helper's `status()`, not from log lines; the log is used for display and the certificate digest only · the helper owns the session, and its status also covers ends the log never shows (helper restart, another client's disconnect).
 - 2026-10-14 · 3.1 · Of the Rust-era names only `AppIdentity.socketPath` and `helperLogPath` stay, commented, for the installer's cleanup · nothing else uses them; `helperVersion`, `sessionLogPrefix`, the socket client and `LogBuffer` are gone.
+- 2026-10-14 · 3.1 (fix) · Gateway-pushed DNS suffix lists: the whole `Found dns suffix …` value is split at ';', ',' and whitespace, each part checked with `Validation.hostname`, empty or invalid parts dropped, duplicates merged, at most 16 kept · openfortivpn prints the gateway's `domain=` value as one string, and a list with spaces after the ';' kept only its first suffix.
 
 ## Open questions
 
