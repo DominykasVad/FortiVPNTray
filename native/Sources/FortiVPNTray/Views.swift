@@ -310,7 +310,12 @@ struct ProfileEditor: View {
                         field("Host") { TextField("vpn.example.com", text: $profile.host).modifier(InputStyle()).accessibilityLabel("Host") }
                         field("Port") { TextField("8443", text: $portText).modifier(InputStyle()).accessibilityLabel("Port") }.frame(width: 88)
                     }
-                    Text("Sign in through your browser (SAML) when you connect.").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
+                    Text("Sign in with SAML when you connect.").font(.system(size: 11)).foregroundStyle(Appearance.secondary)
+                    Toggle("Use external browser for SAML", isOn: $profile.samlExternalBrowser).font(.system(size: 12)).toggleStyle(.checkbox)
+                        .disabled(isReadOnly).accessibilityIdentifier("profile-saml-external-browser")
+                    Text(profile.samlExternalBrowser ? "The login page opens in your default browser."
+                         : "The login page opens in a login window that shares your Safari sign-in; it closes once you are connected.")
+                        .font(.system(size: 11)).foregroundStyle(Appearance.secondary)
                     field("Realm (optional)") { TextField("optional", text: Binding(get: { profile.realm ?? "" }, set: { profile.realm = $0 })).modifier(InputStyle()).accessibilityLabel("Realm") }
                     DisclosureGroup("Trusted Certificates") {
                         Text("SHA256 fingerprints · one per line").font(.system(size: 11)).foregroundStyle(Appearance.secondary)

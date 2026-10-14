@@ -2,7 +2,7 @@
 
 A lightweight, native macOS menu bar client for [openfortivpn](https://github.com/adrienverge/openfortivpn), built with **SwiftUI and AppKit**, for gateways that use **SAML** single sign-on (for example Microsoft Entra ID).
 
-Connect, sign in through your browser, close the window, and keep your VPN in the menu bar.
+Connect, sign in with SAML, close the window, and keep your VPN in the menu bar.
 
 [Build details](native/README.md) · [Local signing](docs/signing.md) · [MIT license](LICENSE)
 
@@ -18,7 +18,7 @@ Connect, sign in through your browser, close the window, and keep your VPN in th
 - **Menu bar first:** closing the window removes the running Dock icon while the VPN stays connected. Reopen it from the menu bar.
 - **Visible connection state:** a green filled checkmark shield when connected, an outline shield when disconnected, and distinct connecting/error icons.
 - **Live traffic:** VPN IP, connection duration, download/upload rates, session totals and a two-minute traffic chart in both the window and tray popover.
-- **Multiple profiles:** SAML sign-in through the browser, optional realms. There is no password authentication and nothing is stored in Keychain.
+- **Multiple profiles:** SAML sign-in in a login window that shares your Safari sign-in, or per profile in your default browser; optional realms. There is no password authentication and nothing is stored in Keychain.
 - **Certificate pins:** SHA256 pins per profile. An untrusted gateway certificate is shown with its fingerprint and pinned only after you confirm it.
 - **DNS:** the VPN's DNS servers and search domains are applied for the session; with DNS fallback on, the system resolvers are kept when the VPN supplies none.
 - **Root helper with a narrow interface:** the app sends only a validated connection request; the helper builds openfortivpn's configuration itself, runs its own root-owned copy of openfortivpn, and undoes routes and DNS on every way a session ends.
@@ -76,7 +76,7 @@ The [app CI workflow](.github/workflows/ci-app.yml) tests and builds the Apple S
 
 1. Open **Settings** and choose **Install Helper…**. Approve the macOS administrator prompt, then wait for **Installed and running**. Settings shows which **caller check** the helper uses: *Signed caller check*, or *UID-only* with a warning for an ad-hoc signed build.
 2. Create a profile with the gateway host, port and, if your gateway needs one, the realm.
-3. Select the profile and click **Connect**, then sign in in the browser window that opens. If asked to trust a certificate, verify its SHA256 fingerprint with your administrator before confirming.
+3. Select the profile and click **Connect**, then sign in in the login window that opens (or in your default browser, if the profile has **Use external browser for SAML** on). The window closes once you are connected; closing it yourself disconnects. If asked to trust a certificate, verify its SHA256 fingerprint with your administrator before confirming.
 4. Close the window to keep the VPN in the menu bar. Click the tray icon for statistics and **Disconnect**; **Open Window** restores the window and Dock icon.
 
 **Quit** disconnects the active session before exiting. Repairing or uninstalling the helper requires disconnecting first; refreshing its status is available while connected. Uninstalling the helper keeps your profiles.

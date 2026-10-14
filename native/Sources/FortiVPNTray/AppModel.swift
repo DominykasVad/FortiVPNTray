@@ -14,6 +14,8 @@ final class AppModel: ObservableObject {
     @Published var ip = ""
     @Published var since: Date?
     @Published var logs: [String] = []
+    /// Where the SAML login page opens, per profile (PLAN.md 3.5).
+    let samlLogin = SAMLLoginCoordinator(window: WebAuthenticationLoginWindow()) { NSWorkspace.shared.open($0) }
     @Published var error: String?
     @Published var mainWindowVisible = false
     @Published var settings = AppSettings()
@@ -62,6 +64,10 @@ final class AppModel: ObservableObject {
             storageAvailable = false
             self.error = "Cannot read existing configuration. The files have been preserved. \(error.localizedDescription)"
         }
+        samlLogin.onUserCancel = { [weak self] in
+            self?.appendLog("The login window was closed; disconnecting.")
+            self?.disconnect()
+        }
         if !smokeTest { refreshHelper() }
     }
     func save(_ profile: VPNProfile) throws {
@@ -108,21 +114,24 @@ final class AppModel: ObservableObject {
                     for line in result.lines where settings.debugMode || !line.contains("DEBUG:") { appendLog(line) }
                     for event in result.events {
                         switch event {
-                        case .connected(let address): phase = .connected; ip = address; since = since ?? Date(); samlURL = nil
+                        case .connected(let address):
+                            phase = .connected; ip = address; since = since ?? Date(); samlURL = nil
+                            samlLogin.finish()
                         case .disconnected: appendLog("The tunnel is down; waiting for process cleanup.")
                         case .saml(let url):
-                            // Checked again right before the browser gets it (PLAN.md 3.1).
-                            guard let validated = try? profile.validated(), SAMLLogin.isExpected(url, host: validated.host, port: validated.port) else {
+                            // Checked again right before it is opened (PLAN.md 3.1), in the login
+                            // window or the browser as the profile says (3.5).
+                            guard samlLogin.present(url, for: profile) != .refused else {
                                 appendLog("ERROR:  Refused to open an unexpected login URL.")
                                 continue
                             }
                             phase = .waiting; samlURL = url
-                            NSWorkspace.shared.open(url)
                         case .certificate(let digest): certificate = CertificatePrompt(profileID: profile.id, digest: digest)
                         }
                     }
                     updateBandwidth(result)
                     if let message = result.exitMessage {
+                        samlLogin.finish()
                         phase = .failed; activeID = nil; self.error = message
                         downloadRate = 0; uploadRate = 0; since = nil; ip = ""
                         appendLog(message)
@@ -136,6 +145,7 @@ final class AppModel: ObservableObject {
                 // A monitor failure may leave a VPN running. Keep Disconnect available.
                 let running = await engine.hasSession
                 activeID = running ? profile.id : nil
+                samlLogin.finish()
                 phase = .failed
                 downloadRate = 0; uploadRate = 0
                 self.error = error.localizedDescription
@@ -157,6 +167,7 @@ final class AppModel: ObservableObject {
         // Wait for an in-flight spawn to finish before asking the helper to stop it.
         // This prevents a late spawn from surviving a close/quit request.
         phase = .disconnecting
+        samlLogin.finish()
         await starting?.value
         try await engine.stop()
         activeID = nil; phase = .disconnected; since = nil; samlURL = nil
