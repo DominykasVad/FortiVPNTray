@@ -68,6 +68,62 @@ struct ValidationTests {
         #expect(!Validation.digest(""))
     }
 
+    // MARK: The same hostile edits on every validator (PLAN.md 4.1)
+
+    /// Characters none of the validators allows: `=`, every kind of whitespace and line
+    /// break, NUL, and non-ASCII (accents, a combining mark, a Cyrillic look-alike,
+    /// Unicode hyphens and digits, zero-width and direction-changing characters).
+    static let hostileInserts = [
+        "=", " ", "\t", "\n", "\r", "\r\n", "\0", "\u{0B}", "\u{0C}", "\u{85}", "\u{A0}", "\u{2028}", "\u{2029}", "\u{3000}",
+        "é", "\u{0301}", "\u{0430}", "\u{2010}", "\u{FF0D}", "\u{FF11}", "\u{200B}", "\u{202E}", "\u{FEFF}",
+    ]
+
+    /// `value` with `insert` at its start, in its middle and at its end.
+    static func hostileVariants(of value: String) -> [String] {
+        let middle = value.index(value.startIndex, offsetBy: value.count / 2)
+        return hostileInserts.flatMap { insert in
+            [insert + value, String(value[..<middle]) + insert + String(value[middle...]), value + insert]
+        }
+    }
+
+    private static let validators: [(name: String, check: @Sendable (String) -> Bool, valid: String)] = [
+        ("hostname", Validation.hostname, "vpn.example.com"),
+        ("ipv4", Validation.ipv4, "192.0.2.1"),
+        ("host", Validation.host, "vpn.example.com"),
+        ("digest", Validation.digest, String(repeating: "0123456789abcdef", count: 4)),
+        ("realm", Validation.realm, "staff"),
+    ]
+
+    @Test func testHostileCharactersAnywhereAreRejectedByEveryValidator() {
+        for validator in Self.validators {
+            #expect(validator.check(validator.valid), "\(validator.name)")
+            for variant in Self.hostileVariants(of: validator.valid) {
+                #expect(!validator.check(variant), "\(validator.name): \(variant.debugDescription)")
+            }
+        }
+        #expect(!Validation.host("192.0.2.1\n") && !Validation.host("\u{FF11}92.0.2.1"))
+    }
+
+    /// A leading `-` would read as an option in argv. Hosts and digests refuse it. A realm
+    /// may start with one: realms only go into the config file and the SAML URL, never into
+    /// argv, which is fixed (decision log, 1.3), and `-` is one of its allowed characters.
+    @Test func testLeadingHyphen() {
+        for value in ["-vpn.example.com", "-c", "--saml-login", "-192.0.2.1"] {
+            #expect(!Validation.hostname(value) && !Validation.ipv4(value) && !Validation.host(value), "\(value)")
+        }
+        #expect(!Validation.digest("-" + String(repeating: "a", count: 63)))
+        #expect(Validation.realm("-staff") && Validation.realm("--c"))
+    }
+
+    @Test func testOverlongValuesAreRejectedByEveryValidator() {
+        let huge = String(repeating: "a", count: 1 << 20)
+        for validator in Self.validators {
+            #expect(!validator.check(huge), "\(validator.name)")
+            #expect(!validator.check(validator.valid + huge), "\(validator.name)")
+        }
+        #expect(!Validation.ipv4("192.0.2.0001") && !Validation.ipv4(String(repeating: "1", count: 300) + ".0.2.1"))
+    }
+
     @Test func testRealm() {
         for realm in ["staff", "a", "Staff_2.example-x", String(repeating: "r", count: 63)] {
             #expect(Validation.realm(realm), "\(realm)")

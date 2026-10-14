@@ -418,7 +418,7 @@ Manual, maintainer on the Mac (report pass/fail):
     record what macOS did and open a fix task.
 
 ### Tasks — phase 4
-- [ ] **4.1** Unit tests listed above.
+- [x] **4.1** Unit tests listed above.
 - [ ] **4.2** *(maintainer)* Manual checklist 1–10, results recorded here.
 
 **Review checkpoint 4.**
