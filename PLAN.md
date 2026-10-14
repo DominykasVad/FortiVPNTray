@@ -21,7 +21,7 @@ helper is safe even when a hostile process runs as the logged-in user.
 
 ## Status
 
-**Current phase: 2**, starting with 2.0. Phases 0 and 1 are done (all tasks merged).
+**Current phase: 3**, starting with 3.0. Phases 0–2 are done (all tasks merged).
 How to work (branches, commits, definition of done, hard rules): see
 `AGENTS.md`. Each phase ends with a
 **task list**; one task = one sub-phase = one branch = one PR. Tick the box in
@@ -360,6 +360,19 @@ it. Version check compares **protocol** version.
   admin prompt. Declining keeps the working copy. Never auto-update. Disabled
   while connected.
 - Interface byte counters can stay app-side (unprivileged `getifaddrs`).
+- 3.1: the app opens `pendingSAMLURL()` only if it is https, its host and port
+  equal the profile's, and its path is `/remote/saml/start`. The helper builds it
+  from the validated request, but the app checks it anyway before
+  `NSWorkspace.open`.
+- 3.1: `VPNEngine`'s old `/tmp` session log and the Rust-era `AppIdentity` names
+  go; after that, remove the Rust-era constants that only the installer cleanup
+  still needs, or keep just those two with a comment.
+- 3.2: the cert-pin flow needs the gateway's digest. The helper exposes only
+  redacted log lines; check that openfortivpn's `trusted-cert = <digest>` hint
+  survives redaction and is parsed app-side from `readLog`, or add a typed field
+  to `HelperStatus`. Decide and record it.
+- 3.4: the app reads `manifest.json` (root-owned, 0644) for installed hashes and
+  source hashes; never trusts it for anything the helper relies on.
 
 ### Tasks — phase 3
 - [ ] **3.0** Remove password authentication from the app (F9): `AuthType` and its editor radio, username field, Keychain password storage and access, related tests. No migration: there are no existing profiles or saved passwords to carry over. Docs updated in 3.3.
