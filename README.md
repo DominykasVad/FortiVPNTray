@@ -34,6 +34,15 @@ Connect, sign in through your browser, close the window, and keep your VPN in th
 brew install openfortivpn
 ```
 
+## Gateway requirements
+
+These are settings on the FortiGate side; the client cannot work around them.
+
+- **SAML:** the gateway's SAML SP entity ID and ACS URL must use the SSL VPN host and port, for example `https://vpn.example.com:10443/remote/saml/login`. Without the port the login lands on `:443`, and the browser is never sent back to the local listener that openfortivpn waits on. FortiClient's embedded browser still works in that case, which hides the problem.
+- **Split DNS:** push the internal domains as the SSL VPN DNS suffix (several separated by `;`). Without a suffix the VPN resolver is registered as a catch-all and loses to other catch-all resolvers, such as Tailscale's.
+- **No public resolvers:** don't push a public resolver (for example `8.8.8.8`) as a VPN DNS server. It can answer internal names with NXDOMAIN, and internal lookups leak to it.
+- **Safari:** with iCloud Private Relay or "Limit IP address tracking", Safari may bypass split DNS for internal names under a public domain. `.local` names are not affected.
+
 ## Build and run
 
 This fork is built from source; it publishes no release downloads. From the repository root:
@@ -107,10 +116,6 @@ native/dist/FortiVPNTray.app/Contents/MacOS/FortiVPNTray --smoke-test
 It uses temporary configuration and simulated telemetry, checks window/tray/Dock behavior, and exits automatically without contacting the live helper. The unit tests use fakes for the helper, processes, routes and DNS; they never establish a VPN connection or change the system.
 
 Automated tests and builds do not replace testing against your SAML gateway, corporate DNS, sleep/wake behavior or macOS version. See [native/README.md](native/README.md) for validation details.
-
-## Contributing
-
-Bug reports and focused pull requests are welcome on this repository. Include your macOS version, chip, steps to reproduce and expected behavior. Remove SAML URLs and tokens, gateway addresses and other private details from logs before sharing them. Include relevant tests for behavior changes and describe what you tested manually.
 
 ## Credits and license
 
