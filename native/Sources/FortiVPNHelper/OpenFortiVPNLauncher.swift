@@ -118,6 +118,10 @@ final class OpenFortiVPNLauncher: TunnelLauncher, @unchecked Sendable {
     func stop(sessionID: String) {
         guard let child = locked({ child }), child.sessionID == sessionID else { return }
         let process = child.process
+        // Known, accepted limit of Foundation's Process: the child can exit and be reaped
+        // between the isRunning check and kill(), and its PID could in theory be reused
+        // by then. Process offers no way to signal it that excludes this (no pidfd on
+        // macOS, and Process reaps the child itself), so the window stays this short.
         for signal in [SIGINT, SIGKILL] where process.isRunning {
             kill(process.processIdentifier, signal)
             let deadline = Date().addingTimeInterval(Self.stopGrace)
