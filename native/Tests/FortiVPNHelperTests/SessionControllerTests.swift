@@ -3,27 +3,96 @@ import Foundation
 import FortiVPNShared
 @testable import FortiVPNHelper
 
-struct SessionControllerTests {
-    /// Records calls; fails `start` when told to.
-    private final class MockLauncher: TunnelLauncher, @unchecked Sendable {
-        // @unchecked Sendable: all fields are only touched while holding `lock`.
-        struct Failure: Error, CustomStringConvertible { var description: String { "mock start failed" } }
-        private let lock = NSLock()
-        private var _starts: [String] = []
-        private var _stops = 0
-        private let fails: Bool
-        init(fails: Bool = false) { self.fails = fails }
-        var starts: [String] { lock.withLock { _starts } }
-        var stops: Int { lock.withLock { _stops } }
-        func start(_ request: ConnectRequest, sessionID: String) throws {
-            lock.withLock { _starts.append(sessionID) }
-            if fails { throw Failure() }
-        }
-        func stop() { lock.withLock { _stops += 1 } }
+/// A launcher whose child is imaginary: records calls, can fail, can hold `start`
+/// open until released, and lets the test send events as the child would.
+final class MockLauncher: TunnelLauncher, @unchecked Sendable {
+    // @unchecked Sendable: all fields are only touched while holding `lock`.
+    struct Failure: Error, CustomStringConvertible { var description: String { "mock start failed" } }
+    enum Call: Equatable { case startEntered(String), startReturned(String), stop(String) }
+
+    private let lock = NSLock()
+    private var _calls: [Call] = []
+    private var _running: Set<String> = []
+    private var _onEvent: [String: @Sendable (TunnelEvent) -> Void] = [:]
+    private let fails: Bool
+    /// When set, `start` signals `entered` and waits for `release` before returning.
+    private let gate: (entered: DispatchSemaphore, release: DispatchSemaphore)?
+
+    init(fails: Bool = false, holdsStart: Bool = false) {
+        self.fails = fails
+        gate = holdsStart ? (DispatchSemaphore(value: 0), DispatchSemaphore(value: 0)) : nil
     }
 
+    var calls: [Call] { lock.withLock { _calls } }
+    var starts: [String] { calls.compactMap { if case .startReturned(let id) = $0 { return id } else { return nil } } }
+    var stops: Int { calls.filter { if case .stop = $0 { return true } else { return false } }.count }
+    /// Sessions whose imaginary child is running.
+    var running: Set<String> { lock.withLock { _running } }
+
+    func waitUntilStartEntered() -> Bool { gate?.entered.wait(timeout: .now() + 10) == .success }
+    func releaseStart() { gate?.release.signal() }
+
+    func send(_ event: TunnelEvent, to sessionID: String) {
+        let handler = lock.withLock { () -> (@Sendable (TunnelEvent) -> Void)? in
+            if case .exited = event { _running.remove(sessionID) }
+            return _onEvent[sessionID]
+        }
+        handler?(event)
+    }
+
+    func start(_ request: ConnectRequest, sessionID: String, onEvent: @escaping @Sendable (TunnelEvent) -> Void) throws {
+        lock.withLock {
+            _calls.append(.startEntered(sessionID))
+            _onEvent[sessionID] = onEvent
+        }
+        if fails { throw Failure() }
+        // The child is spawned here, before start returns.
+        lock.withLock { _ = _running.insert(sessionID) }
+        if let gate {
+            gate.entered.signal()
+            _ = gate.release.wait(timeout: .now() + 10)
+        }
+        lock.withLock { _calls.append(.startReturned(sessionID)) }
+    }
+
+    func stop(sessionID: String) {
+        lock.withLock {
+            _calls.append(.stop(sessionID))
+            _running.remove(sessionID)
+        }
+    }
+}
+
+/// Runs `body` on its own thread, so a test can block on it without holding a task-pool thread.
+func onThread<Value: Sendable>(_ body: @escaping @Sendable () -> Value) -> @Sendable () -> Value? {
+    let done = DispatchSemaphore(value: 0)
+    let box = Box<Value>()
+    Thread.detachNewThread {
+        box.value = body()
+        done.signal()
+    }
+    return { done.wait(timeout: .now() + 15) == .success ? box.value : nil }
+}
+
+final class Box<Value: Sendable>: @unchecked Sendable {
+    // @unchecked Sendable: `_value` is only touched while holding `lock`.
+    private let lock = NSLock()
+    private var _value: Value?
+    var value: Value? {
+        get { lock.withLock { _value } }
+        set { lock.withLock { _value = newValue } }
+    }
+}
+
+struct SessionControllerTests {
     private let request = try! ConnectRequest(host: "vpn.example.com", port: 443)
     private let start = Date(timeIntervalSince1970: 1_700_000_000)
+
+    static func attempt(_ body: () throws -> String) -> Result<String, SessionController.Refusal> {
+        do { return .success(try body()) } catch let refusal as SessionController.Refusal { return .failure(refusal) } catch {
+            return .failure(.init(description: "unexpected: \(error)"))
+        }
+    }
 
     @Test func testConnectStartsOneSession() throws {
         let launcher = MockLauncher()
@@ -33,6 +102,8 @@ struct SessionControllerTests {
         #expect(UUID(uuidString: id) != nil)
         #expect(launcher.starts == [id])
         #expect(sessions.status() == HelperStatus(state: .connecting, sessionID: id, since: start))
+        launcher.send(.tunnelUp, to: id)
+        #expect(sessions.status() == HelperStatus(state: .connected, sessionID: id, since: start))
     }
 
     @Test func testSecondConnectIsRefusedWhileActive() throws {
@@ -66,15 +137,83 @@ struct SessionControllerTests {
     @Test func testDisconnectStopsAndAllowsANewSession() throws {
         let launcher = MockLauncher()
         let sessions = SessionController(launcher: launcher)
-        _ = try sessions.connect(request)
+        let id = try sessions.connect(request)
         sessions.disconnect()
-        #expect(launcher.stops == 1)
+        #expect(launcher.calls == [.startEntered(id), .startReturned(id), .stop(id)])
+        #expect(launcher.running.isEmpty)
         #expect(sessions.status() == HelperStatus())
         // Nothing running: disconnect does nothing.
         sessions.disconnect()
         #expect(launcher.stops == 1)
         _ = try sessions.connect(request)
         #expect(launcher.starts.count == 2)
+    }
+
+    /// The review case: disconnect arrives while start() is still running, after the
+    /// child was spawned and before start() returned. The stop waits for start() and
+    /// the child is not left running.
+    @Test func testDisconnectWhileStartIsRunningStopsTheChildAfterStartReturns() throws {
+        let launcher = MockLauncher(holdsStart: true)
+        let sessions = SessionController(launcher: launcher)
+        let request = request
+        let connect = onThread { Self.attempt { try sessions.connect(request) } }
+        #expect(launcher.waitUntilStartEntered())
+        let id = try #require(sessions.status().sessionID)
+        #expect(sessions.status().state == .connecting)
+        #expect(launcher.running == [id])
+
+        sessions.disconnect()
+        // Recorded, not acted on: stop() never runs alongside start().
+        #expect(sessions.status() == HelperStatus(state: .disconnecting, sessionID: id, since: sessions.status().since))
+        #expect(launcher.stops == 0)
+        // A second disconnect and a new connect change nothing while it unwinds.
+        sessions.disconnect()
+        #expect(throws: SessionController.Refusal(description: "A session is already active.")) { try sessions.connect(request) }
+
+        launcher.releaseStart()
+        let outcome = try #require(connect())
+        #expect(outcome == .failure(SessionController.Refusal(description: SessionController.disconnectedWhileStarting)))
+        #expect(launcher.calls == [.startEntered(id), .startReturned(id), .stop(id)])
+        #expect(launcher.running.isEmpty)
+        #expect(sessions.status() == HelperStatus())
+        launcher.releaseStart()   // Let the next start through without holding it.
+        _ = try sessions.connect(request)
+    }
+
+    @Test func testDisconnectWhileStartFailsStopsNothing() throws {
+        let launcher = MockLauncher(fails: true)
+        let sessions = SessionController(launcher: launcher)
+        #expect(throws: SessionController.Refusal.self) { try sessions.connect(request) }
+        sessions.disconnect()
+        #expect(launcher.stops == 0)
+    }
+
+    @Test func testChildExitWhileRunningEndsTheSession() throws {
+        let launcher = MockLauncher()
+        let sessions = SessionController(launcher: launcher)
+        let id = try sessions.connect(request)
+        launcher.send(.exited(.status(1)), to: id)
+        #expect(sessions.status() == HelperStatus(lastError: "openfortivpn exited with status 1."))
+        sessions.disconnect()
+        #expect(launcher.stops == 0)
+        // Events for a session that is over are ignored.
+        launcher.send(.tunnelUp, to: id)
+        #expect(sessions.status().state == .idle)
+    }
+
+    @Test func testChildExitBeforeStartReturnsFailsTheConnect() throws {
+        let launcher = MockLauncher(holdsStart: true)
+        let sessions = SessionController(launcher: launcher)
+        let request = request
+        let connect = onThread { Self.attempt { try sessions.connect(request) } }
+        #expect(launcher.waitUntilStartEntered())
+        let id = try #require(sessions.status().sessionID)
+        launcher.send(.exited(.signal(9)), to: id)
+        #expect(sessions.status().state == .connecting)
+        launcher.releaseStart()
+        #expect(try #require(connect()) == .failure(SessionController.Refusal(description: "openfortivpn was ended by signal 9.")))
+        #expect(sessions.status() == HelperStatus(lastError: "openfortivpn was ended by signal 9."))
+        #expect(launcher.stops == 0)
     }
 
     @Test func testReadLogOnlyForTheCurrentOrLastSession() throws {
@@ -90,12 +229,6 @@ struct SessionControllerTests {
         }
         sessions.disconnect()
         #expect(try sessions.readLog(sessionID: id, offset: 5) == LogChunk(lines: [], nextOffset: 5))
-    }
-
-    @Test func testUnavailableLauncherRefusesEveryStart() {
-        let sessions = SessionController(launcher: UnavailableLauncher())
-        #expect(throws: SessionController.Refusal.self) { try sessions.connect(request) }
-        #expect(sessions.status().state == .idle)
         #expect(sessions.pendingSAMLURL() == nil)
     }
 }

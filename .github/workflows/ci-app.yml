@@ -36,7 +36,12 @@ jobs:
           toolchain: stable
       - name: Verify Apple Silicon runner
         run: test "$(uname -m)" = arm64
+      - name: Install OpenSSL for the path probe
+        run: brew install openssl@4
       - name: Test Swift core
+        env:
+          # OpenSSLPathTests fails instead of skipping when Homebrew openssl@4 is missing.
+          FVT_REQUIRE_OPENSSL_PROBE: "1"
         run: |
           set +e
           native/scripts/test.sh 2>&1 | tee "$RUNNER_TEMP/swift-tests.log"

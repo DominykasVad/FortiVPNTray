@@ -275,7 +275,7 @@ it. Version check compares **protocol** version.
 - [x] **2.0** Package layout: `FortiVPNShared` gets protocol types, validators, `LogParser`/`LogBuffer` (moves only, no behaviour change).
 - [x] **2.1** Transport + caller check.
 - [x] **2.2** API + `ConnectRequest` validation, with tests for every rejection rule.
-- [ ] **2.3** Spawning: config writer, argv builder, binary/dylib ownership checks.
+- [x] **2.3** Spawning: config writer, argv builder, binary/dylib ownership checks.
 - [ ] **2.4** Logs: ring buffer + redaction.
 - [ ] **2.5** DNS, routes, cleanup, state file.
 - [ ] **2.6** Installer / uninstaller.
@@ -365,6 +365,8 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 2.2 · Trusted-cert fingerprints are lowercase only at the helper (`^[0-9a-f]{64}$`); the app lowercases before validating and sending · the helper applies the plan's rule as written and does no normalising of caller input.
 - 2026-10-14 · 2.2 · `--allowed-uid 0` is rejected by both the launch-argument builder and parser · the helper serves one logged-in user; a 0 most likely means the installer took the UID of `sudo`.
 - 2026-10-14 · 2.2 · No DNS server addresses cross from the app; ConnectRequest carries only `useSystemDNSFallback`, the helper reads the system resolvers itself · any caller-chosen resolver, however range-checked, would let a same-user attacker redirect all DNS while the tunnel is up (F7).
+- 2026-10-14 · 2.3 · Child SSL_CERT_DIR = empty root-owned <label>.d/certs, checked before spawn · Homebrew OpenSSL's compiled-in certs dir is user-writable and is consulted during gateway verification even with SSL_CERT_FILE set; a CA dropped there would make a forged gateway cert pass.
+- 2026-10-14 · 2.3 · A disconnect while the launcher's start is still running is recorded and acted on when start returns; the launcher's stop never runs alongside its start · the child may be spawned before its PID is recorded, and only after start returns can stop reach it, so it is never left running.
 
 ## Open questions
 
