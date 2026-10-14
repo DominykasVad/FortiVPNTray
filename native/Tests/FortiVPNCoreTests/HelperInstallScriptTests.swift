@@ -249,6 +249,11 @@ struct HelperInstallScriptTests {
         ]
         let positions = try steps.map(position)
         #expect(positions == positions.sorted())
+        // Each file's load commands are read in full before install_name_tool rewrites it.
+        let read = try position("while IFS= read -r line; do references+=(\"$line\"); done < <(non_system_libraries \"$current\")")
+        let rewrite = try position("install_name_tool -change \"$reference\" \"$dotd/lib/$name\" \"$current\"")
+        #expect(read < rewrite)
+        #expect(script.components(separatedBy: "non_system_libraries \"$current\"").count == 2, "otool runs once per file, before the loop")
         #expect(!script.contains("ossl-modules"))
         #expect(!script.contains("/tmp"), "root creates nothing under /tmp")
     }

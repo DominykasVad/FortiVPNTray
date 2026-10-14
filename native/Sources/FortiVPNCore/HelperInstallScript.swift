@@ -153,7 +153,14 @@ public enum HelperInstallScript {
     while [[ $next -lt ${#queue[@]} ]]; do
       current="${queue[$next]}"
       next=$((next + 1))
-      while IFS= read -r reference; do
+      # Read every load command first: install_name_tool below rewrites "$current",
+      # and otool must never read a file while it is being rewritten.
+      references=()
+      while IFS= read -r line; do references+=("$line"); done < <(non_system_libraries "$current")
+      ref_index=0
+      while [[ $ref_index -lt ${#references[@]} ]]; do
+        reference="${references[$ref_index]}"
+        ref_index=$((ref_index + 1))
         [[ -n "$reference" ]] || continue
         case "$reference" in
           "$dotd"/lib/*) continue ;;
@@ -172,7 +179,7 @@ public enum HelperInstallScript {
           queue+=("$stage/lib/$name")
         fi
         install_name_tool -change "$reference" "$dotd/lib/$name" "$current" 2>/dev/null
-      done < <(non_system_libraries "$current")
+      done
     done
 
     # Rewriting load commands breaks the signature, and arm64 runs only signed code.
