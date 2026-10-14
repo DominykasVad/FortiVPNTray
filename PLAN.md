@@ -263,6 +263,12 @@ the root-owned dir, file `0600`. No `/tmp` anywhere.
   longer finds it. Never match pppd by name (F8). Remove the server host route;
   restore default route only if it currently points at the session's ppp iface;
   remove scutil key; flush cache.
+- Every recorded PID (openfortivpn and pppd) is stored with its start time and
+  executable path. Before signalling one, verify it is still the same process:
+  compare the start time (`proc_pidinfo` / `PROC_PIDTBSDINFO`,
+  `pbi_start_tvsec` + `pbi_start_tvusec`) and the executable path. Mismatch →
+  don't signal, just clear the state. Test with a recorded PID whose process has
+  exited.
 - Child exits unexpectedly → same cleanup automatically (helper notices, not the app).
 - Pre-connect orphan sweep uses only the persisted state file.
 
