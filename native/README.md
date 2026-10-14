@@ -23,7 +23,7 @@ The build produces a signed `.app` with the helper in `Contents/Resources/FortiV
 - Install/Repair in Settings runs one script behind one administrator prompt. It installs the helper, copies Homebrew's openfortivpn and every non-system library it loads into `/Library/PrivilegedHelperTools/eu.dvad.fortivpntray.helper.d` (load paths rewritten, re-signed, hashes in `manifest.json`), writes the launchd job with your user ID and, for a locally signed app, its certificate hash, and starts the helper only after the helper itself has checked the copy. It refuses if Homebrew's openfortivpn is missing.
 - Uninstall is refused during a session; it removes the helper, its job, the openfortivpn copy and its state, and keeps profiles.
 - The app talks to the helper over XPC (`eu.dvad.fortivpntray.helper`): version, connect, disconnect, status, log, SAML URL. Settings shows the helper's state, version and caller check (*Signed caller check* or *UID-only*); the app requires the same protocol version as the helper.
-- After `brew upgrade` of openfortivpn or OpenSSL, Repair copies the new version; the helper keeps running its old copy until then.
+- Settings compares the copy with Homebrew as the user, read-only: the copy's `manifest.json` against the hash of Homebrew's current binary and every library it loads (so an OpenSSL update is noticed even if openfortivpn's version is unchanged). If they differ it shows both versions and offers **Update openfortivpn…**, the same admin-prompt install as Repair; never automatic, not while connected. The manifest only decides what is shown; the helper checks the copy itself before every start.
 
 ## Application behavior
 

@@ -81,7 +81,7 @@ The [app CI workflow](.github/workflows/ci-app.yml) tests and builds the Apple S
 
 **Quit** disconnects the active session before exiting. Repairing or uninstalling the helper requires disconnecting first; refreshing its status is available while connected. Uninstalling the helper keeps your profiles.
 
-After `brew upgrade` changes openfortivpn or OpenSSL, choose **Repair / Reinstall Helper…** to copy the new version; until then the helper keeps using its working copy.
+After `brew upgrade` changes openfortivpn or OpenSSL, Settings shows the installed and the Homebrew versions and offers **Update openfortivpn…**, which copies the new files behind one administrator prompt. Nothing is updated automatically; until you update, the helper keeps using its working copy.
 
 ## Architecture and data
 

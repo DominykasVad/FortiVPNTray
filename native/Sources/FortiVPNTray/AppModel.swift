@@ -18,6 +18,8 @@ final class AppModel: ObservableObject {
     @Published var mainWindowVisible = false
     @Published var settings = AppSettings()
     @Published var helperStatus: HelperInstallationStatus?
+    /// Homebrew's openfortivpn compared with the helper's copy (PLAN.md 3.4); checked with the helper status.
+    @Published var openfortivpnUpdate: OpenFortiVPNUpdateStatus?
     @Published var helperRefreshing = false
     @Published var helperOperation = ""
     @Published var helperFeedback: String?
@@ -178,13 +180,16 @@ final class AppModel: ObservableObject {
         helperRefreshing = true
         Task {
             helperStatus = await Task.detached { HelperInstallationStatus.inspect() }.value
+            openfortivpnUpdate = await Task.detached { OpenFortiVPNUpdateCheck.check() }.value
             helperRefreshing = false
         }
     }
-    func manageHelper(install: Bool) {
+    /// Install, Repair, or (`updatingOpenFortiVPN`) Update: all three run the same admin-prompt
+    /// install, which copies Homebrew's current openfortivpn (PLAN.md 3.4). Never automatic.
+    func manageHelper(install: Bool, updatingOpenFortiVPN: Bool = false) {
         guard !hasSession, !helperBusy, !helperRefreshing else { return }
         helperBusy = true
-        helperOperation = install ? "Installing helper…" : "Uninstalling helper…"
+        helperOperation = updatingOpenFortiVPN ? "Updating openfortivpn…" : install ? "Installing helper…" : "Uninstalling helper…"
         helperFeedback = nil
         helperFeedbackIsError = false
         let resources = Bundle.main.resourceURL
@@ -214,13 +219,15 @@ final class AppModel: ObservableObject {
                     helperFeedbackIsError = true
                     helperFeedback = "Helper installed in UID-only mode. " + HelperInstallationStatus.uidOnlyWarning
                 } else {
-                    helperFeedback = install ? "Helper installed successfully and ready to use." : "Helper uninstalled. Your profiles are preserved."
+                    helperFeedback = updatingOpenFortiVPN ? "openfortivpn updated from Homebrew."
+                        : install ? "Helper installed successfully and ready to use." : "Helper uninstalled. Your profiles are preserved."
                 }
             } catch {
                 helperFeedbackIsError = true
                 helperFeedback = error.localizedDescription
                 helperStatus = await Task.detached { HelperInstallationStatus.inspect() }.value
             }
+            openfortivpnUpdate = await Task.detached { OpenFortiVPNUpdateCheck.check() }.value
             helperBusy = false
             helperOperation = ""
         }
