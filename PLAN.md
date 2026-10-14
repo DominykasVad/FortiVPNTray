@@ -256,9 +256,13 @@ the root-owned dir, file `0600`. No `/tmp` anywhere.
 - On "Tunnel is up": apply DNS via `scutil` from parsed `Found dns server/suffix`
   lines; if none parsed and `useSystemDNSFallback`, the helper uses the system
   resolvers it read itself before connecting (`State:/Network/Global/DNS`).
-- Disconnect: SIGINT tracked pid → SIGKILL after 2 s; kill only pppd children of
-  that pid (`pgrep -P`); remove the server host route; restore default route only
-  if it currently points at the session's ppp iface; remove scutil key; flush cache.
+- Disconnect: SIGINT tracked pid → SIGKILL after 2 s; record pppd's PID (child of
+  the tracked openfortivpn) while openfortivpn is still alive and persist it in the
+  state file; on disconnect stop that recorded pppd explicitly, because after
+  SIGKILL on openfortivpn its pppd is reparented to launchd and `pgrep -P` no
+  longer finds it. Never match pppd by name (F8). Remove the server host route;
+  restore default route only if it currently points at the session's ppp iface;
+  remove scutil key; flush cache.
 - Child exits unexpectedly → same cleanup automatically (helper notices, not the app).
 - Pre-connect orphan sweep uses only the persisted state file.
 
