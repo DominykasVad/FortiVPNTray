@@ -65,6 +65,9 @@ public struct HelperLaunchArguments: Equatable, Sendable {
     public static let allowedUIDFlag = "--allowed-uid"
     public static let leafFlag = "--client-req-leaf"
     public static let uidOnlyFlag = "--uid-only"
+    /// Not a launch argument: the installer runs the helper with only this flag to check
+    /// the openfortivpn copy as root, and the helper exits after the check (PLAN.md 2.6).
+    public static let verifyInstallFlag = "--verify-install"
 
     public let allowedUID: uid_t
     public let callerCheck: CallerCheck

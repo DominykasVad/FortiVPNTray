@@ -14,6 +14,8 @@ public enum AppIdentity {
     public static let openfortivpnDirectory = "/Library/PrivilegedHelperTools/\(helperLabel).d"
     /// Root-owned `0700` directory for the helper's state file.
     public static let helperSupportDirectory = "/Library/Application Support/\(helperLabel)"
+    /// The helper's state file (PLAN.md 2.5); it exists while a session needs cleaning up.
+    public static let helperStateFile = "\(helperSupportDirectory)/state.json"
     /// Root-owned `0700` directory for per-session openfortivpn config files.
     public static let helperRunDirectory = "\(helperSupportDirectory)/run"
     public static let dnsServiceKey = "State:/Network/Service/\(identifier)/DNS"

@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import FortiVPNCore
+import FortiVPNShared
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -193,11 +194,13 @@ final class AppModel: ObservableObject {
         let resources = Bundle.main.resourceURL
         Task {
             do {
-                try await Task.detached {
+                let mode: CallerCheckMode? = try await Task.detached {
                     if install {
                         guard let resources else { throw VPNError("App bundle resources were not found.") }
-                        try HelperInstaller.install(resourceDirectory: resources)
-                    } else { try HelperInstaller.uninstall() }
+                        return try HelperInstaller.install(resourceDirectory: resources)
+                    }
+                    try HelperInstaller.uninstall()
+                    return nil
                 }.value
                 helperOperation = "Verifying helper…"
                 var status = await Task.detached { HelperInstallationStatus.inspect() }.value
@@ -210,7 +213,13 @@ final class AppModel: ObservableObject {
                 guard install ? status.state == .ready : status.state == .missing else {
                     throw VPNError(install ? "Installation finished, but the helper is not ready. \(status.detail)" : "Removal could not be verified. \(status.detail)")
                 }
-                helperFeedback = install ? "Helper installed successfully and ready to use." : "Helper uninstalled. Your profiles and saved passwords are preserved."
+                if mode == .uidOnly {
+                    // Not an error, but it must be seen: the helper accepts any process of this user.
+                    helperFeedbackIsError = true
+                    helperFeedback = "Helper installed in UID-only mode. " + HelperInstallationStatus.uidOnlyWarning
+                } else {
+                    helperFeedback = install ? "Helper installed successfully and ready to use." : "Helper uninstalled. Your profiles and saved passwords are preserved."
+                }
             } catch {
                 helperFeedbackIsError = true
                 helperFeedback = error.localizedDescription

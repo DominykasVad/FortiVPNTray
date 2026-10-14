@@ -296,7 +296,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         checks["openingFromTrayShowsWindow"] = window.isVisible
         checks["openingFromTrayRestoresDock"] = NSApp.activationPolicy() == .regular
         model.settingsVisible = true
-        model.helperStatus = HelperInstallationStatus(executablePresent: true, launchDaemonPresent: true, version: AppIdentity.helperVersion)
+        model.helperStatus = HelperInstallationStatus(executablePresent: true, launchDaemonPresent: true,
+                                                     helper: HelperVersion(version: HelperTransport.helperVersion, protocolVersion: HelperTransport.protocolVersion, mode: .signed))
         try? await Task.sleep(nanoseconds: 250_000_000)
         checks["settingsSnapshot"] = snapshot(window.contentView!, name: "settings")
         model.settingsVisible = false

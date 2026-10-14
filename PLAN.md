@@ -297,6 +297,34 @@ refuses if Homebrew's openfortivpn is missing, creates
 run/log/state dirs, writes the plist (with `MachServices`, `--allowed-uid`, and
 `--client-req-leaf` or `--uid-only`), `launchctl bootout` + `bootstrap`. Uninstall removes all of
 it. Version check compares **protocol** version.
+- Admin step: the prompt runs one installer script. Every value interpolated into
+  it is validated first (allowed UID: digits, non-zero; leaf SHA-1: 40 hex;
+  everything else constants from `AppIdentity`) and shell-quoted. No caller- or
+  user-supplied strings, no paths from the environment. Paths with spaces
+  (`/Library/Application Support`) quoted everywhere.
+- Allowed UID = the logged-in user running the app (`getuid()` of the app), never
+  the sudo/root UID. Leaf hash = `CodeSignature.leafSHA1OfRunningCode()`; nil →
+  `--uid-only` with a visible warning in the UI. Plist `ProgramArguments` built
+  with `HelperLaunchArguments.arguments` (no hand-written flags).
+- openfortivpn copy (S2, as root inside the script): same procedure as
+  `spikes/openfortivpn-copy`: copy binary + every non-system dylib (found via
+  `otool -L`, not hardcoded), rewrite load paths, re-sign ad-hoc, write
+  `manifest.json` in exactly the format `OpenFortiVPNInstall.verify()` reads,
+  create empty `certs/` (root:wheel 0755). No `ossl-modules` dir. Refuse if
+  Homebrew openfortivpn is missing. After install, the app calls the helper (or
+  runs verify logic) to confirm the install passes `OpenFortiVPNInstall.verify()`;
+  report failure clearly.
+- Replacing the Rust helper: it uses the same label and executable path. Install
+  must bootout it, replace the binary, remove the old socket
+  `/var/run/eu.dvad.fortivpntray.helper.sock` and old log.
+- Uninstall: refuse while a session is active. Removes helper binary, plist,
+  `.d` tree, run dir, state file and its dir, log. bootout first. Leaves profiles
+  alone.
+- Tests: script generation is unit-tested (exact output for signed and uid-only,
+  quoting, refusal of bad values). The script itself is run only by the
+  maintainer. The PR carries a short maintainer test procedure: install,
+  `sudo launchctl print system/eu.dvad.fortivpntray.helper`, owners/modes of the
+  `.d` tree, `verify()`, uninstall, nothing left.
 
 ### Tasks — phase 2
 - [x] **2.0** Package layout: `FortiVPNShared` gets protocol types, validators, `LogParser`/`LogBuffer` (moves only, no behaviour change).
@@ -305,7 +333,7 @@ it. Version check compares **protocol** version.
 - [x] **2.3** Spawning: config writer, argv builder, binary/dylib ownership checks.
 - [x] **2.4** Logs: ring buffer + redaction.
 - [x] **2.5** DNS, routes, cleanup, state file.
-- [ ] **2.6** Installer / uninstaller.
+- [x] **2.6** Installer / uninstaller.
 - [ ] **2.7** Delete `helper/` (Rust), its CI step and build steps.
 
 **Review checkpoint 2** — full helper diff.
@@ -405,6 +433,9 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 2.5 · The default route is restored only while the recorded pppd is still the same running process, besides pointing at the session's ppp interface · once that pppd is gone its interface name can belong to another VPN's pppd, whose default route must stay untouched.
 - 2026-10-14 · 2.5 · A recorded PID that fails the identity check is skipped; the other cleanup steps still run and the state is removed afterwards · a stale host route and the DNS key are exactly what a crashed session leaves, and they are removed by validated value, not by PID.
 - 2026-10-14 · 2.5 · Connect is refused if the state file cannot be saved, and it is saved before openfortivpn is started · without it a helper crash would leave routes and DNS nothing can undo.
+- 2026-10-14 · 2.6 · The install is confirmed inside the admin script: the newly installed helper runs as root with `--verify-install` (the same `OpenFortiVPNInstall.verify()` as before each spawn) and the job is bootstrapped only if it passes · the app has no XPC call for it, and as the user it could not run the check with root's trust rules.
+- 2026-10-14 · 2.6 · The installer refuses a helper copy whose sha256 differs from what the app hashed before the prompt; the copied openfortivpn is never run during install (versions come from the keg name and `strings`) · the bundle is user-writable and could be swapped during the prompt; running the copy as root without the helper's OpenSSL environment could read user-writable OpenSSL configuration.
+- 2026-10-14 · 2.6 · Uninstall is refused if the helper reports a session over XPC, and the script also refuses while the state file exists · removing the helper mid-session would leave routes and DNS nobody cleans up; the state-file check works even when the helper cannot be asked.
 
 ## Open questions
 

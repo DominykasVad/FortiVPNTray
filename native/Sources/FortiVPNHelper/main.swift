@@ -11,6 +11,12 @@ import os
 
 let log = Logger(subsystem: AppIdentity.helperLabel, category: "main")
 
+// Run by the installer as root after copying openfortivpn (PLAN.md 2.6): the same
+// check as before every spawn, then exit. The reason goes to stderr for the installer.
+if Array(CommandLine.arguments.dropFirst()) == [InstallCheck.flag] {
+    exit(InstallCheck.run())
+}
+
 let launchArguments: HelperLaunchArguments
 do {
     launchArguments = try HelperLaunchArguments(parsing: Array(CommandLine.arguments.dropFirst()))
