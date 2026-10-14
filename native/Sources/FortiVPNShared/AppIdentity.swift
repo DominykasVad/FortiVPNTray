@@ -1,10 +1,11 @@
 import Foundation
 
-/// Every name the fork puts on the system. The Rust helper keeps its own
-/// copies until it is replaced; `IdentityTests` fails if they drift.
+/// Every name the fork puts on the system; `IdentityTests` pins them.
 public enum AppIdentity {
     public static let identifier = "eu.dvad.fortivpntray"
     public static let helperLabel = "\(identifier).helper"
+    // The Rust helper's names (deleted in 2.7). The installer removes its socket and
+    // log from machines that still have them, and VPNEngine uses the rest until phase 3.
     public static let helperVersion = "0.1.9"
     public static let socketPath = "/var/run/\(helperLabel).sock"
     public static let helperLogPath = "/var/log/\(helperLabel).log"
@@ -19,5 +20,6 @@ public enum AppIdentity {
     /// Root-owned `0700` directory for per-session openfortivpn config files.
     public static let helperRunDirectory = "\(helperSupportDirectory)/run"
     public static let dnsServiceKey = "State:/Network/Service/\(identifier)/DNS"
+    /// Rust-helper era; VPNEngine writes its session logs here until phase 3.
     public static let sessionLogPrefix = "/tmp/\(identifier)-"
 }

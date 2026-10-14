@@ -1,5 +1,5 @@
 #!/bin/bash
-# Signs a built FortiVPNTray.app and its bundled helpers.
+# Signs a built FortiVPNTray.app and its bundled helper.
 #   FVT_SIGN_IDENTITY  name of the local code-signing identity; unset or "-" = ad-hoc
 #   FVT_SIGN_KEYCHAIN  optional keychain that holds it
 # See docs/signing.md.
@@ -7,7 +7,7 @@ set -euo pipefail
 app_path="${1:?usage: sign.sh <path to .app>}"
 identity="${FVT_SIGN_IDENTITY:--}"
 keychain="${FVT_SIGN_KEYCHAIN:-}"
-helper_paths=("$app_path/Contents/Resources/FortiVPNHelper" "$app_path/Contents/Resources/openvpngui-helper")
+helper_path="$app_path/Contents/Resources/FortiVPNHelper"
 
 sign_args=(--force --sign "$identity")
 if [[ "$identity" == "-" ]]; then
@@ -27,11 +27,9 @@ elif [[ -n "$keychain" ]]; then
   sign_args+=(--keychain "$keychain")
 fi
 
-# Inside-out: the bundled helpers first, then the bundle that seals them.
+# Inside-out: the bundled helper first, then the bundle that seals it.
 targets=()
-for helper_path in "${helper_paths[@]}"; do
-  if [[ -f "$helper_path" ]]; then targets+=("$helper_path"); fi
-done
+if [[ -f "$helper_path" ]]; then targets+=("$helper_path"); fi
 targets+=("$app_path")
 for target in "${targets[@]}"; do
   codesign "${sign_args[@]}" "$target"

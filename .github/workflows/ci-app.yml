@@ -5,13 +5,11 @@ on:
     branches: [main]
     paths:
       - native/**
-      - helper/**
       - .github/workflows/ci-app.yml
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - native/**
-      - helper/**
       - .github/workflows/ci-app.yml
   workflow_dispatch:
 
@@ -31,9 +29,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-09
-        with:
-          toolchain: stable
       - name: Verify Apple Silicon runner
         run: test "$(uname -m)" = arm64
       - name: Install OpenSSL for the path probe
@@ -57,8 +52,6 @@ jobs:
           PYCODE
           fi
           exit "$result"
-      - name: Test connection helper
-        run: cargo test --manifest-path helper/Cargo.toml --locked
       - name: Build native application
         run: native/scripts/build.sh
       - name: Verify signature and archive
