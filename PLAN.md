@@ -362,10 +362,13 @@ Manual, maintainer on the Mac (report pass/fail):
 7b. Upgrade only the OpenSSL formula openfortivpn links (currently `openssl@4`, found via `otool -L`) → app detects the change.
 8. Built-in L2TP/other pppd untouched by disconnect.
 9. Rebuild + reinstall app with same identity → helper still accepts it.
+10. Kill openfortivpn with SIGKILL while connected (`sudo kill -9 <pid>`) → after the helper's
+    cleanup the Mac still has a working default route and DNS (ping, name lookup). If not,
+    record what macOS did and open a fix task.
 
 ### Tasks — phase 4
 - [ ] **4.1** Unit tests listed above.
-- [ ] **4.2** *(maintainer)* Manual checklist 1–9, results recorded here.
+- [ ] **4.2** *(maintainer)* Manual checklist 1–10, results recorded here.
 
 **Review checkpoint 4.**
 
