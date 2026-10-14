@@ -36,10 +36,10 @@ public enum Validation {
         text.utf8.count == 64 && text.utf8.allSatisfy { isDigit($0) || (UInt8(ascii: "a")...UInt8(ascii: "f")).contains($0) }
     }
 
-    /// An openfortivpn realm: 1–63 of `A-Z a-z 0-9 . _ -`. openfortivpn silently
-    /// truncates longer realms (S3).
+    /// An openfortivpn realm: 1–63 of `A-Z a-z 0-9 . _ -`, not starting with `-`.
+    /// openfortivpn silently truncates longer realms (S3).
     public static func realm(_ text: String) -> Bool {
-        (1...63).contains(text.utf8.count) && text.utf8.allSatisfy {
+        (1...63).contains(text.utf8.count) && text.utf8.first != hyphen && text.utf8.allSatisfy {
             isDigit($0) || isLetter($0) || $0 == dot || $0 == UInt8(ascii: "_") || $0 == hyphen
         }
     }

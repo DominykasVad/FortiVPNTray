@@ -35,7 +35,7 @@ public struct ConnectRequest: Equatable, Sendable {
             case .malformed: return "The connect request is malformed."
             case .host: return "The host must be a hostname or an IPv4 address."
             case .port: return "The port must be between 1 and 65535."
-            case .realm: return "The realm must be 1–63 letters, digits, '.', '_' or '-'."
+            case .realm: return "The realm must be 1–63 letters, digits, '.', '_' or '-', not starting with '-'."
             case .samlListenPort: return "The SAML listen port must be between 1024 and 65535."
             case .trustedCert: return "Each trusted certificate must be 64 lowercase hex digits."
             case .tooManyTrustedCerts: return "At most \(ConnectRequest.maxTrustedCerts) trusted certificates are allowed."

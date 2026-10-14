@@ -124,6 +124,49 @@ struct ConnectRequestTests {
         }
     }
 
+    /// What a hostile same-user client can send: the validators' hostile edits on every
+    /// string field, through the JSON decoding the helper runs (PLAN.md 4.1).
+    @Test func testHostileStringsInEveryFieldAreRejected() {
+        let fields: [(key: String, valid: String, wrap: (String) -> Any, expected: Rejection)] = [
+            ("host", "vpn.example.com", { $0 }, .host),
+            ("realm", "staff", { $0 }, .realm),
+            ("trustedCerts", cert, { [$0] }, .trustedCert),
+        ]
+        for field in fields {
+            for variant in ValidationTests.hostileVariants(of: field.valid) {
+                var object = object()
+                object[field.key] = field.wrap(variant)
+                expectRejected(field.expected) { () throws(Rejection) in try decode(object) }
+            }
+        }
+        // A leading '-' is refused in the host and in the realm.
+        var object = object()
+        object["host"] = "-c/tmp/x"
+        expectRejected(.host) { () throws(Rejection) in try decode(object) }
+        object = self.object()
+        object["realm"] = "-c"
+        expectRejected(.realm) { () throws(Rejection) in try decode(object) }
+        object["realm"] = "staff-2"
+        #expect(throws: Never.self) { try decode(object) }
+    }
+
+    @Test func testOverlongFieldsAreRejected() {
+        let label = String(repeating: "a", count: 63)
+        let cases: [(String, Any, Rejection)] = [
+            ("host", [label, label, label, String(repeating: "b", count: 62)].joined(separator: "."), .host),
+            ("host", label + "a.example.com", .host),
+            ("realm", String(repeating: "r", count: 64), .realm),
+            ("trustedCerts", [cert + "0"], .trustedCert),
+            ("host", String(repeating: "a", count: ConnectRequest.maxEncodedSize), .tooLarge),
+            ("realm", String(repeating: "r", count: ConnectRequest.maxEncodedSize), .tooLarge),
+        ]
+        for (key, value, expected) in cases {
+            var object = object()
+            object[key] = value
+            expectRejected(expected) { () throws(Rejection) in try decode(object) }
+        }
+    }
+
     @Test func testMalformedJSONRejected() {
         let mutations: [(inout [String: Any]) -> Void] = [
             { $0["extraArgs"] = ["--pppd-plugin=/tmp/x"] },

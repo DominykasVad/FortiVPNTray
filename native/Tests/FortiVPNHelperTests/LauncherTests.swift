@@ -79,11 +79,77 @@ struct LauncherTests {
         #expect(try OpenFortiVPNConfig.line("realm", "a.b_c-D") == "realm = a.b_c-D\n")
     }
 
+    /// Every key refuses the same values, not only `host` (PLAN.md 4.1): line breaks and
+    /// NUL end or cut the value, `=` and whitespace move or trim it, and anything outside
+    /// printable ASCII is refused rather than escaped.
+    @Test func testEveryKeyRefusesTheSameValues() throws {
+        let refused = ["", "a\nb", "a\rb", "a\r\nb", "a\0b", "\0", "a=b", "=", "a b", " a", "a ", "a\tb", "a\u{0B}b", "a\u{0C}b",
+                       "a\u{85}b", "a\u{A0}b", "a\u{2028}b", "a\u{200B}b", "a\u{202E}b", "\u{FEFF}a", "é", "a\u{0301}", "\u{0430}",
+                       "a\u{7f}", "a\u{1b}[31mb", "x\nhost = 198.51.100.1", "x\npppd-plugin = /tmp/x.so"]
+        for key in OpenFortiVPNConfig.keys {
+            for value in refused {
+                #expect(failure { _ = try OpenFortiVPNConfig.line(key, value) } == "Refusing to write config key \(key).", "\(key): \(value.debugDescription)")
+            }
+            #expect(try OpenFortiVPNConfig.line(key, "x") == "\(key) = x\n")
+        }
+    }
+
+    /// The writer emits only its own keys, so nothing can add an option openfortivpn knows
+    /// but the helper does not set, whatever the value.
+    @Test func testOnlyTheWritersOwnKeysAreWritten() {
+        for key in Self.knownKeys.subtracting(OpenFortiVPNConfig.keys).sorted() + ["", "host ", " host", "HOST", "host=x", "host\n"] {
+            #expect(failure { _ = try OpenFortiVPNConfig.line(key, "1") } != nil, "\(key.debugDescription)")
+        }
+    }
+
+    /// SAML-only: whatever the request, the file has exactly one `saml-login`, DNS left to
+    /// the helper, no credential or pppd key, and the request's values only as values.
+    @Test func testConfigIsSAMLOnlyForEveryRequest() throws {
+        let requests = [
+            try ConnectRequest(host: "192.0.2.1", port: 1),
+            try ConnectRequest(host: "vpn.example.com", port: 65535, realm: "staff-2", auth: .saml(listenPort: 1024)),
+            try ConnectRequest(host: "vpn.example.com", port: 10443, realm: "staff", trustedCerts: Array(repeating: cert, count: 16),
+                               useSystemDNSFallback: false),
+        ]
+        for request in requests {
+            let parsed = parse(try OpenFortiVPNConfig.render(request))
+            #expect(parsed.filter { $0.0 == "saml-login" }.count == 1)
+            #expect(Array(parsed.prefix(2)).map { "\($0.0)=\($0.1)" } == ["set-dns=0", "pppd-use-peerdns=0"])
+            #expect(parsed.allSatisfy { OpenFortiVPNConfig.keys.contains($0.0) }, "\(parsed)")
+            #expect(parsed.first { $0.0 == "realm" }?.1 == request.realm)
+            #expect(parsed.filter { $0.0 == "trusted-cert" }.map(\.1) == request.trustedCerts)
+        }
+    }
+
     // MARK: argv and environment
 
     @Test func testArgumentsAreFixed() {
         #expect(OpenFortiVPNLauncher.arguments(configPath: "/Library/Application Support/x/run/a.conf")
                 == ["-c", "/Library/Application Support/x/run/a.conf", "-v"])
+    }
+
+    /// The child's argv is the same for every request: nothing from the request reaches
+    /// it, and the config path is the helper's run directory plus a session UUID.
+    @Test func testChildArgvIsTheSameForEveryRequest() throws {
+        let requests = [
+            try ConnectRequest(host: "192.0.2.1", port: 443),
+            try ConnectRequest(host: "vpn.example.com", port: 10443, realm: "staff-2", auth: .saml(listenPort: 9000), trustedCerts: [cert]),
+        ]
+        for request in requests {
+            let fake = try FakeInstall()
+            let launcher = OpenFortiVPNLauncher(install: fake.install, runDirectory: fake.runDirectory)
+            let id = UUID().uuidString
+            try launcher.start(request, sessionID: id) { _ in }
+            defer { launcher.stop(sessionID: id) }
+            let report = try #require(fake.waitForReport())
+            #expect(report.filter { $0.hasPrefix("arg:") } == ["arg:-c", "arg:\(fake.runDirectory.path)/\(id).conf", "arg:-v"])
+        }
+        // The session id names the file, so the launcher takes only a UUID.
+        let fake = try FakeInstall()
+        let launcher = OpenFortiVPNLauncher(install: fake.install, runDirectory: fake.runDirectory)
+        for id in ["../x", "a", "\(UUID().uuidString)/../x", ""] {
+            #expect(failure { try launcher.start(requests[0], sessionID: id) { _ in } } == "Bad session id.", "\(id)")
+        }
     }
 
     @Test func testEnvironmentIsExactlyThePinnedOne() {
