@@ -28,10 +28,15 @@ struct CoreTests {
     @Test func testHelperStatusShowsTheCallerCheckAndWarnsAboutUIDOnly() {
         let signed = HelperInstallationStatus(executablePresent: true, launchDaemonPresent: true,
                                               helper: HelperVersion(version: "0.3.0", protocolVersion: HelperTransport.protocolVersion, mode: .signed))
-        expectEqual(signed.detail, "Version 0.3.0 · Signed caller check · Ready to connect.")
+        expectEqual(signed.detail, "Version 0.3.0 · Ready to connect.")
+        expectEqual(signed.callerCheck, "Caller check: Signed caller check")
+        expectFalse(signed.callerCheckIsWeak)
         let uidOnly = HelperInstallationStatus(executablePresent: true, launchDaemonPresent: true,
                                                helper: HelperVersion(version: "0.3.0", protocolVersion: HelperTransport.protocolVersion, mode: .uidOnly))
-        expectEqual(uidOnly.detail, "Version 0.3.0 · UID-only · " + HelperInstallationStatus.uidOnlyWarning)
+        expectEqual(uidOnly.callerCheck, "Caller check: UID-only")
+        expectTrue(uidOnly.callerCheckIsWeak)
+        // No answer from the helper: no mode is claimed.
+        expectNil(HelperInstallationStatus(executablePresent: true, launchDaemonPresent: true, helper: nil).callerCheck)
         expectTrue(HelperInstallationStatus.uidOnlyWarning.contains("any process running as you"))
     }
     @Test func testStatisticsByteBoundaries() {

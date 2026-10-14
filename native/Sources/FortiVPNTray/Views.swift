@@ -369,6 +369,15 @@ struct SettingsView: View {
                             .foregroundStyle(model.helperStatus?.state == .ready ? Color.green : Color.orange)
                         Text(model.helperStatus?.detail ?? "Reading installation and service status.")
                             .font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.7))
+                        if let status = model.helperStatus, let callerCheck = status.callerCheck {
+                            Label(callerCheck, systemImage: status.callerCheckIsWeak ? "exclamationmark.shield" : "checkmark.shield")
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(status.callerCheckIsWeak ? Color.orange : Color.green)
+                                .accessibilityIdentifier("helper-caller-check")
+                            if status.callerCheckIsWeak {
+                                Text(HelperInstallationStatus.uidOnlyWarning).font(.system(size: 11)).foregroundStyle(Color.orange)
+                            }
+                        }
                     }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
                         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
                     if model.hasSession {
