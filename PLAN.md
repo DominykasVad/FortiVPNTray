@@ -379,7 +379,7 @@ it. Version check compares **protocol** version.
 - [x] **3.1** `VPNEngine` as client of the new API; SAML URL polling.
 - [x] **3.2** Delete `GatewayCertificate` / `ignoreCertErrors` (decode-and-drop); cert-pin flow from helper events.
 - [x] **3.3** Settings shows caller-check mode; README + native/README updated.
-- [ ] **3.4** openfortivpn update check + Update action (runs through the admin-prompt install path, like Repair — **not** a new helper API call: a same-user caller must not be able to trigger a re-copy).
+- [x] **3.4** openfortivpn update check + Update action (runs through the admin-prompt install path, like Repair — **not** a new helper API call: a same-user caller must not be able to trigger a re-copy).
 - [ ] **3.5** SAML login window, chosen per profile like FortiClient: a profile setting
   "Use external browser for SAML" (default off).
   - Off (embedded): ASWebAuthenticationSession (no entitlement;
@@ -463,6 +463,7 @@ supersede it with a new one that names the old.
 - 2026-10-14 · 3.1 · Of the Rust-era names only `AppIdentity.socketPath` and `helperLogPath` stay, commented, for the installer's cleanup · nothing else uses them; `helperVersion`, `sessionLogPrefix`, the socket client and `LogBuffer` are gone.
 - 2026-10-14 · 3.1 (fix) · Gateway-pushed DNS suffix lists: the whole `Found dns suffix …` value is split at ';', ',' and whitespace, each part checked with `Validation.hostname`, empty or invalid parts dropped, duplicates merged, at most 16 kept · openfortivpn prints the gateway's `domain=` value as one string, and a list with spaces after the ';' kept only its first suffix.
 - 2026-10-14 · 3.2 · The pin prompt's digest is parsed app-side from `readLog`, not a typed `HelperStatus` field, and only from openfortivpn's exact hint line (`ERROR:      --trusted-cert <64 lowercase hex>`) directly after its failure line · redaction leaves those lines intact and the API stays unchanged; the certificate's subject and issuer follow as gateway-controlled lines split at '/', so any looser match would let a gateway propose the digest to pin.
+- 2026-10-14 · 3.4 · Update runs the whole admin-prompt install (as Repair), not only the copy step; the check recomputes the installer's source-set hash from Homebrew's real files and compares it with the manifest's `source_set_sha256` · one tested install path instead of a second root script, and the set hash catches an OpenSSL rebuild that leaves every version string the same.
 
 ## Open questions
 

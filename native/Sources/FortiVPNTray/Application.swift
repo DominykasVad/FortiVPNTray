@@ -297,6 +297,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model.settingsVisible = true
         model.helperStatus = HelperInstallationStatus(executablePresent: true, launchDaemonPresent: true,
                                                      helper: HelperVersion(version: HelperTransport.helperVersion, protocolVersion: HelperTransport.protocolVersion, mode: .signed))
+        model.openfortivpnUpdate = OpenFortiVPNUpdateStatus(state: .updateAvailable,
+                                                            installed: OpenFortiVPNVersions(openfortivpn: "1.24.1", openssl: "OpenSSL 4.0.3"),
+                                                            homebrew: OpenFortiVPNVersions(openfortivpn: "1.24.1", openssl: "OpenSSL 4.0.4"))
         try? await Task.sleep(nanoseconds: 250_000_000)
         checks["settingsSnapshot"] = snapshot(window.contentView!, name: "settings")
         model.settingsVisible = false

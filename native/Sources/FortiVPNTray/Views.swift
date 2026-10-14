@@ -404,6 +404,22 @@ struct SettingsView: View {
                     }.font(.system(size: 12))
                     Text("Install and uninstall require macOS administrator permission. Uninstalling preserves your VPN profiles.")
                         .font(.system(size: 11)).foregroundStyle(Appearance.secondary)
+                    if let update = model.openfortivpnUpdate, update.state != .notInstalled {
+                        Divider().padding(.vertical, 4)
+                        Text("OPENFORTIVPN").font(.system(size: 11, weight: .medium)).tracking(1).foregroundStyle(Appearance.secondary)
+                        Label(update.state == .updateAvailable ? "Homebrew has a different build" : update.state == .upToDate ? "Up to date" : "Installed copy",
+                              systemImage: update.state == .updateAvailable ? "arrow.down.circle" : "checkmark.circle")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(update.state == .updateAvailable ? Color.orange : Color.green)
+                        Text(update.detail).font(.system(size: 11)).foregroundStyle(Color.white.opacity(0.7)).textSelection(.enabled)
+                            .accessibilityIdentifier("openfortivpn-update")
+                        if update.state == .updateAvailable {
+                            Button("Update openfortivpn…") { model.manageHelper(install: true, updatingOpenFortiVPN: true) }
+                                .buttonStyle(FilledButton()).disabled(model.hasSession || model.helperBusy || model.helperRefreshing)
+                            Text("Copies Homebrew's current openfortivpn and OpenSSL for the helper; asks for administrator permission. Until then the installed copy keeps working.")
+                                .font(.system(size: 11)).foregroundStyle(Appearance.secondary)
+                        }
+                    }
                 }.font(.system(size: 13)).padding(.trailing, 2)
             }
             Button("Done") { model.saveSettings(); model.settingsVisible = false }.buttonStyle(FilledButton()).keyboardShortcut(.defaultAction)
