@@ -114,18 +114,11 @@ struct CoreTests {
         // The helper only accepts lowercase fingerprints; saved or pasted uppercase ones keep working.
         var p = profile(); p.trustedCerts = [String(repeating: "AB", count: 32)]
         expectEqual(try p.validated().trustedCerts, [String(repeating: "ab", count: 32)])
-        expectTrue(try p.arguments().contains("--trusted-cert=" + String(repeating: "ab", count: 32)))
-    }
-    @Test func testArgumentsAreSAMLOnly() throws {
-        var p = profile(); p.realm = "staff"
-        let args = try p.arguments()
-        expectTrue(args.contains("--saml-login")); expectTrue(args.contains("--realm=staff"))
-        expectFalse(args.contains("-u")); expectFalse(args.contains("-p"))
     }
     @Test func testPasswordProfileFromBefore30LoadsAsSAML() throws {
         let json = #"[{"id":"old-id","name":"Office","host":"vpn.example.com","port":8443,"auth_type":"Password","username":"alice","trusted_certs":[]}]"#
         let values = try JSONDecoder().decode([VPNProfile].self, from: Data(json.utf8))
-        expectEqual(try values[0].arguments(), ["vpn.example.com:8443", "--saml-login", "--set-dns=0", "--pppd-use-peerdns=0", "-v"])
+        expectNoThrow(try values[0].validated())
         expectFalse(String(decoding: try JSONEncoder().encode(values), as: UTF8.self).contains("alice"))
     }
     /// F10: the old "Ignore certificate errors" option trusted whatever the gateway presented.
@@ -135,7 +128,7 @@ struct CoreTests {
         let json = #"[{"id":"old-id","name":"Office","host":"vpn.example.com","port":8443,"trusted_certs":["\#(pin)"],"ignore_cert_errors":true}]"#
         let values = try JSONDecoder().decode([VPNProfile].self, from: Data(json.utf8))
         expectEqual(values[0].trustedCerts, [pin])
-        expectEqual(try values[0].arguments(), ["vpn.example.com:8443", "--saml-login", "--trusted-cert=" + pin, "--set-dns=0", "--pppd-use-peerdns=0", "-v"])
+        expectEqual(try values[0].validated().trustedCerts, [pin])
         expectFalse(String(decoding: try JSONEncoder().encode(values), as: UTF8.self).contains("ignore_cert_errors"))
     }
     @Test func testStoredExtraArgumentsAreDroppedOnLoad() throws {
@@ -145,7 +138,6 @@ struct CoreTests {
         expectEqual(values.count, 1)
         expectEqual(values[0].id, "old-id"); expectEqual(values[0].realm, "staff")
         expectNoThrow(try values[0].validated())
-        expectEqual(try values[0].arguments(), ["vpn.example.com:8443", "--saml-login", "--realm=staff", "--set-dns=0", "--pppd-use-peerdns=0", "-v"])
         let encoded = try JSONEncoder().encode(values)
         expectNil((try JSONSerialization.jsonObject(with: encoded) as! [[String: Any]])[0]["extra_args"])
         expectFalse(String(decoding: encoded, as: UTF8.self).contains("pppd-plugin"))
@@ -164,15 +156,9 @@ struct CoreTests {
         expectFalse(saved.contains("extra_args")); expectFalse(saved.contains("pppd-log"))
         expectEqual(try store.profiles(), loaded)
     }
-    @Test func testArgumentsAreExactlyTheManagedSet() throws {
-        var p = profile(); p.trustedCerts = [String(repeating: "a", count: 64)]; p.realm = "staff"
-        expectEqual(try p.arguments(), ["vpn.example.com:8443", "--saml-login", "--trusted-cert=" + p.trustedCerts[0], "--realm=staff", "--set-dns=0", "--pppd-use-peerdns=0", "-v"])
-        p.trustedCerts = []; p.realm = nil
-        expectEqual(try p.arguments(), ["vpn.example.com:8443", "--saml-login", "--set-dns=0", "--pppd-use-peerdns=0", "-v"])
-    }
     @Test func testCertificateFingerprintsValidated() throws {
         var p = profile(); p.trustedCerts = [String(repeating: "a", count: 64)]
-        expectTrue(try p.arguments().contains("--trusted-cert=" + p.trustedCerts[0]))
+        expectEqual(try p.validated().trustedCerts, p.trustedCerts)
         p.trustedCerts = ["abc"]; expectThrows(try p.validated())
     }
     @Test func testShellQuotingPreservesLiteralMetacharacters() throws {

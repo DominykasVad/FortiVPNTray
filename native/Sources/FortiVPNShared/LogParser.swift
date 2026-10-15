@@ -1,7 +1,7 @@
 import Foundation
 
 public enum LogEvent: Equatable, Sendable {
-    case connected(String), disconnected, saml(URL), certificate(String)
+    case connected(String), saml(URL), certificate(String)
 }
 
 public struct LogParser {
@@ -49,7 +49,6 @@ public struct LogParser {
             events.append(.saml(url))
         }
         if line.contains("Tunnel is up and running") { events.append(.connected(localIP ?? "unknown")) }
-        if line.contains("Tunnel is down") { events.append(.disconnected) }
         return events
     }
     public func effectiveDNS(fallback: [String]) -> [String] {

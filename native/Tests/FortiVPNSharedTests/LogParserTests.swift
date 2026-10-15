@@ -50,11 +50,10 @@ struct LogParserTests {
         let safe = LogParser.redacted("password=secret cookie: token123 https://vpn.example.com/?token=123")
         #expect(!safe.contains("secret")); #expect(!safe.contains("token123")); #expect(!safe.contains("token=123"))
     }
-    @Test func testTunnelDownAndLastError() {
+    @Test func testLastError() {
         var parser = LogParser()
         _ = parser.consume("ERROR: Authentication failed")
         #expect(parser.lastError == "ERROR: Authentication failed")
-        #expect(parser.consume("INFO: Tunnel is down") == [.disconnected])
     }
 
     // MARK: Whole sessions in openfortivpn 1.24.1's own words
@@ -123,8 +122,8 @@ struct LogParserTests {
         #expect(parser.lastError == nil, sourceLocation: sourceLocation)
     }
 
-    /// The helper parses the raw lines. openfortivpn 1.24.1 never prints "Tunnel is down":
-    /// the end of a session comes from the child's exit, not from the log (decision log, 3.1).
+    /// The helper parses the raw lines. No line marks the end: openfortivpn 1.24.1 prints no
+    /// "tunnel down" message, and the end of a session comes from the child's exit (decision log, 3.1).
     @Test func testAWholeSessionAsTheHelperReadsIt() {
         var parser = LogParser()
         #expect(Self.sessionUp.flatMap { parser.consume($0) } == [.saml(URL(string: Self.startURL)!), .connected("198.51.100.7")])

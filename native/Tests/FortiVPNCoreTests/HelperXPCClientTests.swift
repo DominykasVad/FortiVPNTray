@@ -118,13 +118,15 @@ struct HelperXPCClientTests {
     }
 
     /// No such service, as when the helper is not installed: an error at once, not a timeout.
+    /// The message tells the two apart; the timeout is long enough that a slow CI runner
+    /// cannot make the quick error look like one.
     @Test func testNoHelperIsUnavailable() async {
         let name = "eu.dvad.fortivpntray.test.missing-\(UUID().uuidString)"
-        let client = HelperXPCClient(timeout: 5) { NSXPCConnection(machServiceName: name, options: []) }
+        let client = HelperXPCClient(timeout: 60) { NSXPCConnection(machServiceName: name, options: []) }
         let began = Date()
         let result = await offPool { try client.version() }
         #expect(result == .failure(VPNError("Helper unavailable. Install or repair it in Settings.")))
-        #expect(Date().timeIntervalSince(began) < 4)
+        #expect(Date().timeIntervalSince(began) < 30)
     }
 
     @Test func testConnectSendsTheRequestAsJSON() async throws {

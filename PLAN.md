@@ -419,7 +419,7 @@ Manual, maintainer on the Mac (report pass/fail):
 
 ### Tasks — phase 4
 - [x] **4.1** Unit tests listed above.
-- [ ] **4.1a** Remove dead code: VPNProfile.arguments() and its CoreTests (the helper builds
+- [x] **4.1a** Remove dead code: VPNProfile.arguments() and its CoreTests (the helper builds
   argv since 2.3), and LogParser's "Tunnel is down" pattern (openfortivpn 1.24.1 never prints
   it). No behaviour change; tests stay green.
 - [ ] **4.2** *(maintainer)* Manual checklist 1–10, results recorded here.

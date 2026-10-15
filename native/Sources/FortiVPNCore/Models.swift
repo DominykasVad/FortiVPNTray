@@ -55,14 +55,6 @@ public struct VPNProfile: Codable, Identifiable, Equatable, Sendable {
         }
         return result
     }
-    public func arguments() throws -> [String] {
-        let p = try validated()
-        var args = ["\(p.host):\(p.port)", "--saml-login"]
-        args += p.trustedCerts.map { "--trusted-cert=\($0)" }
-        if let realm, !realm.isEmpty { args += ["--realm=\(realm)"] }
-        args += ["--set-dns=0", "--pppd-use-peerdns=0", "-v"]
-        return args
-    }
 }
 
 public struct AppSettings: Codable, Equatable, Sendable {
