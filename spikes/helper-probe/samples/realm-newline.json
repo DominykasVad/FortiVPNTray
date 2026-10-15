@@ -1,0 +1,1 @@
+{"host": "vpn.example.com", "port": 443, "realm": "staff\npppd-plugin = /tmp/x.so", "auth": {"method": "saml", "listenPort": 8020}, "trustedCerts": [], "useSystemDNSFallback": true}

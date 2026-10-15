@@ -422,6 +422,10 @@ Manual, maintainer on the Mac (report pass/fail):
 - [x] **4.1a** Remove dead code: VPNProfile.arguments() and its CoreTests (the helper builds
   argv since 2.3), and LogParser's "Tunnel is down" pattern (openfortivpn 1.24.1 never prints
   it). No behaviour change; tests stay green.
+- [x] **4.2-probe** Test client for 4.2 items 3–5: `spikes/helper-probe`, a CLI that calls the
+  installed helper's `version()` and optionally `connect(<raw JSON file>)`, built as
+  `probe-signed` (local identity) and `probe-adhoc`, both with identifier `eu.dvad.fortivpntray`;
+  hostile JSON samples; README with the 4.2 commands. Never wired into the app.
 - [ ] **4.2** *(maintainer)* Manual checklist 1–10, results recorded here.
 
 **Review checkpoint 4.**
