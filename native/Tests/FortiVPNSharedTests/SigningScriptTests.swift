@@ -4,9 +4,11 @@ import Foundation
 /// `native/scripts/sign.sh` on a throwaway bundle. The signed path needs the
 /// maintainer's local identity and is checked by hand (docs/signing.md).
 struct SigningScriptTests {
-    private static let script = URL(fileURLWithPath: #filePath)
+    private static let scripts = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        .appendingPathComponent("scripts/sign.sh")
+        .appendingPathComponent("scripts")
+    private static let script = scripts.appendingPathComponent("sign.sh")
+    private static let checkScript = scripts.appendingPathComponent("check-signature.sh")
 
     private struct Result { let status: Int32; let output: String }
 
@@ -55,6 +57,62 @@ struct SigningScriptTests {
                 #expect(try signature(app.appendingPathComponent("Contents/Resources/FortiVPNHelper").path).contains("Signature=adhoc"))
                 #expect(try run("/usr/bin/codesign", ["--verify", "--deep", "--strict", app.path]).status == 0)
             }
+        }
+    }
+
+    /// CS_RUNTIME: without it the app honours DYLD_INSERT_LIBRARIES, and injected code
+    /// passes the helper's signed caller check.
+    @Test func testEveryBuildCarriesTheHardenedRuntime() throws {
+        try withBundle { app in
+            let result = try sign(app, [:])
+            #expect(result.status == 0, "\(result.output)")
+            #expect(result.output.contains("Signature check passed"))
+            for path in [app.path, app.appendingPathComponent("Contents/Resources/FortiVPNHelper").path] {
+                #expect(try signature(path).contains("runtime"), "\(path)")
+            }
+            #expect(try run(Self.checkScript.path, [app.path]).status == 0)
+        }
+    }
+
+    @Test func testCheckRefusesABuildWithoutTheHardenedRuntime() throws {
+        try withBundle { app in
+            let helper = app.appendingPathComponent("Contents/Resources/FortiVPNHelper").path
+            // As sign.sh signed before: valid, sealed, but not hardened.
+            for path in [helper, app.path] {
+                #expect(try run("/usr/bin/codesign", ["--force", "--sign", "-", path]).status == 0)
+            }
+            let unhardened = try run(Self.checkScript.path, [app.path])
+            #expect(unhardened.status != 0)
+            #expect(unhardened.output.contains("without the hardened runtime"), "\(unhardened.output)")
+
+            // The helper alone is not enough either way round.
+            #expect(try run("/usr/bin/codesign", ["--force", "--options", "runtime", "--sign", "-", app.path]).status == 0)
+            let helperOnly = try run(Self.checkScript.path, [app.path])
+            #expect(helperOnly.status != 0)
+            #expect(helperOnly.output.contains("FortiVPNHelper is signed without the hardened runtime"), "\(helperOnly.output)")
+        }
+    }
+
+    @Test func testCheckRefusesEntitlements() throws {
+        try withBundle { app in
+            #expect(try sign(app, [:]).status == 0)
+            let entitlements = app.deletingLastPathComponent().appendingPathComponent("entitlements.plist")
+            try PropertyListSerialization.data(fromPropertyList: ["com.apple.security.cs.allow-dyld-environment-variables": true], format: .xml, options: 0)
+                .write(to: entitlements)
+            #expect(try run("/usr/bin/codesign", ["--force", "--options", "runtime", "--entitlements", entitlements.path, "--sign", "-", app.path]).status == 0)
+            let result = try run(Self.checkScript.path, [app.path])
+            #expect(result.status != 0)
+            #expect(result.output.contains("entitlements"), "\(result.output)")
+        }
+    }
+
+    @Test func testCheckRefusesATamperedHelper() throws {
+        try withBundle { app in
+            #expect(try sign(app, [:]).status == 0)
+            let helper = app.appendingPathComponent("Contents/Resources/FortiVPNHelper")
+            try FileManager.default.removeItem(at: helper)
+            try FileManager.default.copyItem(atPath: "/usr/bin/false", toPath: helper.path)
+            #expect(try run(Self.checkScript.path, [app.path]).status != 0)
         }
     }
 

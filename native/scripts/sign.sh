@@ -35,6 +35,8 @@ for target in "${targets[@]}"; do
   codesign "${sign_args[@]}" "$target"
 done
 codesign --verify --deep --strict "$app_path"
+# Fails the build if the app or the helper ended up without the hardened runtime.
+"$(dirname "$0")/check-signature.sh" "$app_path"
 
 [[ "$identity" == "-" ]] && exit 0
 
