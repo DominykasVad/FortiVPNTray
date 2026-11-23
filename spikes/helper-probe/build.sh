@@ -16,16 +16,22 @@ identifier="eu.dvad.fortivpntray"
 
 mkdir -p "$dist_dir/samples"
 # The protocol and the service name come from the app's own sources, so they cannot drift.
+# The app's Info.plist is embedded (__TEXT,__info_plist): the helper requires a minimum
+# CFBundleVersion of its callers (CallerRequirement.minimumClientBuild), and a plain
+# executable has none.
 swiftc -swift-version 6 -O -target arm64-apple-macos13.0 -o "$dist_dir/probe" \
+  -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker "$repo_dir/native/Resources/Info.plist" \
   "$shared/AppIdentity.swift" "$shared/HelperTransport.swift" "$spike_dir/Sources/main.swift"
 
+# Both are signed with the hardened runtime, as the app is: an unhardened probe-signed
+# is a signed program any process of the user can inject code into.
 cp "$dist_dir/probe" "$dist_dir/probe-adhoc"
-codesign --force --sign - --identifier "$identifier" "$dist_dir/probe-adhoc"
+codesign --force --options runtime --sign - --identifier "$identifier" "$dist_dir/probe-adhoc"
 built=(probe-adhoc)
 
 identity="${FVT_SIGN_IDENTITY:-}"
 if [[ -n "$identity" && "$identity" != "-" ]]; then
-  sign_args=(--force --sign "$identity" --identifier "$identifier")
+  sign_args=(--force --options runtime --sign "$identity" --identifier "$identifier")
   [[ -n "${FVT_SIGN_KEYCHAIN:-}" ]] && sign_args+=(--keychain "$FVT_SIGN_KEYCHAIN")
   cp "$dist_dir/probe" "$dist_dir/probe-signed"
   codesign "${sign_args[@]}" "$dist_dir/probe-signed"

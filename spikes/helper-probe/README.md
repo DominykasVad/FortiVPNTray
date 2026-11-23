@@ -27,6 +27,12 @@ The two builds are the same program, signed differently:
 | `probe-signed` | local identity | `eu.dvad.fortivpntray` | accepted: exactly what the helper requires |
 | `probe-adhoc` | ad-hoc | `eu.dvad.fortivpntray` | rejected |
 
+Both carry the hardened runtime and the app's `Info.plist` (embedded), so `probe-signed`
+has the build number the helper requires of its callers. A `probe-signed` built before
+this was the case (no hardened runtime, no build number) is refused by a current helper,
+and should be deleted: until the helper is updated it is a signed program that anyone
+running as you can inject code into.
+
 ## Output
 
 ```
