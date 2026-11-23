@@ -429,4 +429,33 @@ struct LauncherTests {
         splitter.append(Data(repeating: UInt8(ascii: "x"), count: LineSplitter.maxLineLength + 10))
         #expect(lines.value?.map(\.count) == [LineSplitter.maxLineLength])
     }
+
+    /// A line longer than the limit is cut. What follows the cut is still the same line
+    /// (for example the rest of a very long certificate subject) and must not be read as
+    /// a line of its own, where it could pass for one of openfortivpn's status lines.
+    @Test func testTheRestOfAnOverlongLineNeverStartsALine() {
+        let lines = Box<[String]>()
+        lines.value = []
+        let splitter = LineSplitter { line in lines.value = (lines.value ?? []) + [line] }
+        let long = String(repeating: "x", count: LineSplitter.maxLineLength)
+
+        splitter.append(Data((long + "0123456789").utf8))
+        splitter.append(Data("INFO:   Tunnel is up and running.\nINFO:   next\n".utf8))
+        #expect(lines.value == [long, "INFO:   next"])
+
+        // The rest can arrive in several reads before its newline does.
+        lines.value = []
+        splitter.append(Data((long + "y").utf8))
+        splitter.append(Data("DEBUG:  Found dns server 203.0.113.66 in xml config".utf8))
+        splitter.append(Data(" and more".utf8))
+        splitter.finish()
+        #expect(lines.value == [long])
+        splitter.append(Data(" still the same line\nok\n".utf8))
+        #expect(lines.value == [long, "ok"])
+
+        // A whole overlong line in one read, newline included.
+        lines.value = []
+        splitter.append(Data((long + "INFO:   Interface ppp9 is UP.\nafter\n").utf8))
+        #expect(lines.value == [long, "after"])
+    }
 }
