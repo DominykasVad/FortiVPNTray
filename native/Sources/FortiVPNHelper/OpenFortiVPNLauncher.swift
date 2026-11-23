@@ -24,8 +24,12 @@ final class OpenFortiVPNLauncher: TunnelLauncher, @unchecked Sendable {
         let identity: ProcessIdentity?
     }
 
-    /// openfortivpn's log line once the tunnel is up (`tunnel.c`).
-    static let tunnelUpMarker = "Tunnel is up and running"
+    /// Whether `line` is openfortivpn's log line once the tunnel is up (`tunnel.c`,
+    /// `on_ppp_if_up`), whole: its ERROR lines repeat text from outside, so the words
+    /// elsewhere mean nothing. The padding after the level is openfortivpn's to change.
+    static func isTunnelUpLine(_ line: String) -> Bool {
+        line.range(of: #"^INFO:\s+Tunnel is up and running\.$"#, options: .regularExpression) != nil
+    }
     /// How long `stop` waits after SIGINT before SIGKILL, and after SIGKILL.
     static let stopGrace: TimeInterval = 2
 
@@ -82,7 +86,7 @@ final class OpenFortiVPNLauncher: TunnelLauncher, @unchecked Sendable {
 
         let runDirectory = runDirectory
         let lines = LineSplitter { line in
-            if line.contains(Self.tunnelUpMarker) {
+            if Self.isTunnelUpLine(line) {
                 runDirectory.remove(configName)
                 onEvent(.output(line))
                 onEvent(.tunnelUp)
