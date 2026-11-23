@@ -186,6 +186,39 @@ struct VPNEngineTests {
         #expect(await !engine.hasSession)
     }
 
+    /// The app was killed or crashed while connected: the helper still runs that tunnel,
+    /// and a freshly started app knows nothing about it.
+    @Test func testASessionLeftBehindIsEndedBeforeANewOne() async throws {
+        let helper = FakeHelperAPI()
+        helper.set { $0.currentStatus = HelperStatus(state: .connected, sessionID: UUID().uuidString, interface: "ppp0") }
+        let engine = VPNEngine(helper: helper)
+        try await engine.start(profile: profile(), settings: AppSettings())
+        #expect(helper.disconnects == 1, "the tunnel nobody watches is ended first")
+        #expect(helper.requests.count == 1)
+        #expect(await engine.hasSession)
+        #expect(try helper.status().sessionID == helper.sessionID)
+    }
+
+    @Test func testEndingALeftoverSessionLeavesTheAppsOwnAlone() async throws {
+        let helper = FakeHelperAPI()
+        let engine = VPNEngine(helper: helper)
+        // Nothing running: nothing to end.
+        #expect(try await !engine.endLeftoverSession())
+        #expect(helper.disconnects == 0)
+
+        // Left behind by an earlier run of the app.
+        helper.set { $0.currentStatus = HelperStatus(state: .connecting, sessionID: UUID().uuidString) }
+        #expect(try await engine.endLeftoverSession())
+        #expect(helper.disconnects == 1)
+        #expect(try helper.status().state == .idle)
+
+        // The app's own session is not a leftover.
+        try await engine.start(profile: profile(), settings: AppSettings())
+        #expect(try await !engine.endLeftoverSession())
+        #expect(helper.disconnects == 1)
+        #expect(await engine.hasSession)
+    }
+
     @Test func testInterfaceBytesOnlyForPPPNames() {
         let wifi = VPNEngine.interfaceBytes("en0")
         #expect(wifi.0 == 0 && wifi.1 == 0, "not a tunnel interface: never read")
