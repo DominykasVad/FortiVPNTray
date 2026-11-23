@@ -57,6 +57,7 @@ struct HelperInstallScriptTests {
         old_socket='/var/run/eu.dvad.fortivpntray.helper.sock'
         old_log='/var/log/eu.dvad.fortivpntray.helper.log'
         source_binary='/opt/homebrew/bin/openfortivpn'
+        source_prefix='/opt/homebrew'
         verify_flag='--verify-install'
 
         """
@@ -158,6 +159,108 @@ struct HelperInstallScriptTests {
         #expect(failing.status != 0)
         #expect(failing.output.contains("Stopped at line") && failing.output.contains("/usr/bin/false"))
         #expect(!failing.output.contains("unreachable"))
+    }
+
+    // MARK: The copy step, run for real
+
+    /// What step 3 of the installer (the openfortivpn copy) did with a stand-in for
+    /// /opt/homebrew in a temporary directory. It runs as the test user: `chown` is
+    /// stubbed, everything else is the script's own text.
+    private struct CopyResult {
+        let status: Int32
+        let output: String
+        let root: URL
+        var installed: URL { root.appendingPathComponent("dotd/openfortivpn") }
+    }
+
+    /// `link` returns what `<prefix>/bin/openfortivpn` points at, given the temporary root
+    /// and a real thin arm64 executable inside the stand-in prefix.
+    private func copyStep(link: (_ root: URL, _ genuine: URL) throws -> URL, _ body: (CopyResult) throws -> Void) throws {
+        let files = FileManager.default
+        let temporary = files.temporaryDirectory.appendingPathComponent("install-copy-\(UUID().uuidString)")
+        try files.createDirectory(at: temporary, withIntermediateDirectories: true)
+        defer { try? files.removeItem(at: temporary) }
+        // The script compares real paths; /var is a link to /private/var.
+        let resolved = try #require(realpath(temporary.path, nil))
+        defer { free(resolved) }
+        let root = URL(fileURLWithPath: String(cString: resolved))
+        let prefix = root.appendingPathComponent("brew")
+        let keg = prefix.appendingPathComponent("Cellar/openfortivpn/1.0/bin")
+        try files.createDirectory(at: keg, withIntermediateDirectories: true)
+        try files.createDirectory(at: prefix.appendingPathComponent("bin"), withIntermediateDirectories: true)
+        let genuine = keg.appendingPathComponent("openfortivpn")
+        let thinned = try bash(["-c", "/usr/bin/lipo /usr/bin/true -thin arm64e -output \(Commands.shellQuote(genuine.path))"])
+        try #require(thinned.status == 0, "\(thinned.output)")
+        try files.createSymbolicLink(at: prefix.appendingPathComponent("bin/openfortivpn"), withDestinationURL: try link(root, genuine))
+
+        let script = try HelperInstallScript.install(arguments: try Self.signed(), bundledHelper: Self.bundled, bundledHelperSHA256: Self.hash)
+        let start = try #require(script.range(of: "stage=\"$dotd.new\"\n"))
+        let end = try #require(script.range(of: "mv \"$stage\" \"$dotd\"\n"))
+        let prelude = """
+        set -euo pipefail
+        export PATH=/usr/bin:/bin:/usr/sbin:/sbin
+        die() { echo "$*" >&2; exit 1; }
+        chown() { :; }
+        dotd=\(Commands.shellQuote(root.appendingPathComponent("dotd").path))
+        source_binary=\(Commands.shellQuote(prefix.appendingPathComponent("bin/openfortivpn").path))
+        source_prefix=\(Commands.shellQuote(prefix.path))
+
+        """
+        let result = try bash(["-c", prelude + String(script[start.lowerBound..<end.upperBound])])
+        try body(CopyResult(status: result.status, output: result.output, root: root))
+    }
+
+    /// Every regular file below `root` outside the stand-in prefix: what the step left behind.
+    private func filesLeft(in root: URL) throws -> [URL] {
+        let all = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: [.isRegularFileKey]))
+        return all.compactMap { $0 as? URL }.filter {
+            !$0.path.hasPrefix(root.appendingPathComponent("brew").path + "/") && (try? $0.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+        }
+    }
+
+    @Test func testCopyStepInstallsHomebrewsBinary() throws {
+        try copyStep(link: { _, genuine in genuine }) { result in
+            #expect(result.status == 0, "\(result.output)")
+            #expect(FileManager.default.isExecutableFile(atPath: result.installed.path))
+            let manifest = try JSONSerialization.jsonObject(with: Data(contentsOf: result.root.appendingPathComponent("dotd/manifest.json"))) as? [String: Any]
+            #expect((manifest?["files"] as? [[String: Any]])?.first?["file"] as? String == "openfortivpn")
+            #expect(manifest?["homebrew_keg"] as? String == "1.0")
+        }
+    }
+
+    /// /opt/homebrew belongs to the user. A link there can point at any file root can
+    /// read; the copy would then sit below the helper's directory with mode 755.
+    @Test func testCopyStepRefusesAFileThatIsNotAnExecutable() throws {
+        let secret = "TOP-SECRET-\(UUID().uuidString)"
+        try copyStep(link: { root, _ in
+            let file = root.appendingPathComponent("brew/Cellar/notes")
+            try Data((secret + "\n").utf8).write(to: file)
+            return file
+        }) { result in
+            #expect(result.status != 0)
+            #expect(result.output.contains("is not an arm64 Mach-O file"), "\(result.output)")
+            for file in try filesLeft(in: result.root) {
+                let contents = try Data(contentsOf: file)
+                #expect(contents.range(of: Data(secret.utf8)) == nil, "\(file.path) holds the file's contents")
+            }
+            #expect(!FileManager.default.fileExists(atPath: result.installed.path))
+        }
+    }
+
+    @Test func testCopyStepRefusesAFileOutsideHomebrew() throws {
+        try copyStep(link: { root, genuine in
+            let outside = root.appendingPathComponent("elsewhere")
+            try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+            let file = outside.appendingPathComponent("tool")
+            try FileManager.default.copyItem(at: genuine, to: file)
+            return file
+        }) { result in
+            #expect(result.status != 0)
+            #expect(result.output.contains("is outside"), "\(result.output)")
+            let left = try filesLeft(in: result.root).map(\.lastPathComponent)
+            #expect(left == ["tool"])
+            #expect(!FileManager.default.fileExists(atPath: result.installed.path))
+        }
     }
 
     @Test func testScriptsParse() throws {

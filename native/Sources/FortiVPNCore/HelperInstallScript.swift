@@ -15,8 +15,10 @@ public enum HelperInstallScript {
 
     /// Where the app bundle keeps the helper binary.
     public static let bundledHelperName = "FortiVPNHelper"
-    /// Homebrew's openfortivpn on Apple Silicon: the only source of the copy (S2).
-    public static let homebrewOpenFortiVPN = "/opt/homebrew/bin/openfortivpn"
+    /// Homebrew on Apple Silicon. Everything the installer copies must really be below it.
+    public static let homebrewPrefix = "/opt/homebrew"
+    /// Homebrew's openfortivpn: the only source of the copy (S2).
+    public static let homebrewOpenFortiVPN = "\(homebrewPrefix)/bin/openfortivpn"
 
     /// The launchd job. `RunAtLoad` lets the helper sweep a crashed session at boot;
     /// XPC starts it on demand otherwise. No output paths: it logs through `os.Logger`.
@@ -79,6 +81,7 @@ public enum HelperInstallScript {
     old_socket=\(Commands.shellQuote(AppIdentity.socketPath))
     old_log=\(Commands.shellQuote(AppIdentity.helperLogPath))
     source_binary=\(Commands.shellQuote(homebrewOpenFortiVPN))
+    source_prefix=\(Commands.shellQuote(homebrewPrefix))
     verify_flag=\(Commands.shellQuote(HelperLaunchArguments.verifyInstallFlag))
 
 
@@ -133,10 +136,19 @@ public enum HelperInstallScript {
         index=$((index + 1))
       done
     }
+    # Homebrew's files are the user's, and a link among them can point at any file root
+    # can read. Only a file really below Homebrew is copied, and the copy is kept only
+    # if it is a thin arm64 Mach-O file; anything else would end up readable by everyone.
+    is_arm64_macho() { [[ "$(xxd -l 8 -p "$1")" == cffaedfe0c000001 ]]; }
     copy_in() { # <resolved source> <file in the stage>
       [[ "$1" =~ ^/[A-Za-z0-9._+@/-]+$ ]] || die "Unexpected library path: $1"
-      [[ -f "$1" ]] || die "Not a regular file: $1"
+      [[ "$1" == "$source_prefix"/* ]] || die "$1 is outside $source_prefix; refusing to copy it."
+      [[ -f "$1" && ! -L "$1" ]] || die "Not a regular file: $1"
       cp "$1" "$2"
+      if ! is_arm64_macho "$2"; then
+        rm -f "$2"
+        die "$1 is not an arm64 Mach-O file; refusing to install it."
+      fi
       chmod u+w "$2"
       staged+=("$2")
       origins+=("$1")
