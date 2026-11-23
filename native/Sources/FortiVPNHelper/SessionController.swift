@@ -230,6 +230,14 @@ final class SessionController: @unchecked Sendable {
         "https://\(request.host):\(request.port)/remote/saml/start?redirect=1" + (request.realm.map { "&realm=" + $0 } ?? "")
     }
 
+    /// Whether `line` is one of openfortivpn's own INFO or DEBUG lines (`log.c`). Only those
+    /// tell the helper resolvers, suffixes and addresses. ERROR lines repeat text from
+    /// outside: for a gateway certificate it does not trust, openfortivpn prints the
+    /// subject and issuer, which anyone answering on the gateway's address chooses freely.
+    static func isStatusLine(_ line: String) -> Bool {
+        line.range(of: #"^(INFO|DEBUG):\s"#, options: .regularExpression) != nil
+    }
+
     /// `INFO:   Interface ppp0 is UP.` (`tunnel.c`, `on_ppp_if_up`), printed just before the tunnel is up.
     static func interface(in line: String) -> String? {
         guard let name = LogParser.capture(#"^INFO:\s+Interface (\S+) is UP\.$"#, line), TunnelState.isPPPInterface(name) else { return nil }
@@ -315,7 +323,7 @@ final class SessionController: @unchecked Sendable {
             case .output(let line):
                 guard !current.stopRequested else { return .nothing }
                 if line == "INFO:   Authenticate at '\(current.samlStartURL)'" { session?.samlURLPrinted = true }
-                _ = session?.parser.consume(line)
+                if Self.isStatusLine(line) { _ = session?.parser.consume(line) }
                 if let interface = Self.interface(in: line) { record { $0.interface = interface } }
                 recordPPPD()
             case .tunnelUp:

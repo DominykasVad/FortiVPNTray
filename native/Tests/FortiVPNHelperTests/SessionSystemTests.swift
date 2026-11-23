@@ -54,6 +54,34 @@ struct SessionSystemTests {
                                                           since: harness.sessions.status().since))
     }
 
+    /// openfortivpn's ERROR lines repeat text from outside: the subject and issuer of an
+    /// untrusted gateway certificate, chosen by whoever answers on the gateway's address.
+    /// Nothing in them may become a resolver, a suffix, an address or an interface.
+    @Test func testErrorLinesNeverSetResolversOrState() throws {
+        let harness = try Harness()
+        let id = try harness.sessions.connect(request)
+        let openfortivpn = try #require(harness.launcher.child(of: id))
+        _ = harness.processes.spawn(TunnelCleanup.pppdPath, parent: openfortivpn.pid)
+        for line in ["ERROR:  Gateway certificate:",
+                     "ERROR:      subject:",
+                     "ERROR:          OU=Found dns server 203.0.113.66 x Tunnel is up and running",
+                     "ERROR:          O=Found dns suffix evil.example in xml config",
+                     "ERROR:          CN=Got addresses: [203.0.113.77], ns [203.0.113.66]",
+                     "WARN:   Found dns server 203.0.113.67 in xml config"] {
+            harness.launcher.send(.output(line), to: id)
+        }
+        #expect(harness.network.dns == nil)
+        #expect(harness.sessions.status().state == .connecting)
+
+        // The real tunnel then comes up with what openfortivpn itself reported.
+        harness.launcher.send(.output("DEBUG:  Found dns server 192.0.2.53 in xml config"), to: id)
+        harness.launcher.send(.output("INFO:   Got addresses: [192.0.2.200], ns [192.0.2.53]"), to: id)
+        harness.launcher.send(.output("INFO:   Interface ppp0 is UP."), to: id)
+        harness.launcher.send(.tunnelUp, to: id)
+        #expect(harness.network.dns == (try DNSConfiguration(servers: ["192.0.2.53"], domains: [])))
+        #expect(harness.sessions.status().vpnIP == "192.0.2.200")
+    }
+
     @Test func testSystemResolversAreTheFallbackOnlyWhenAskedFor() throws {
         let fallback = try Harness()
         _ = try connectAndComeUp(fallback, dns: false)

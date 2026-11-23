@@ -24,8 +24,12 @@ final class OpenFortiVPNLauncher: TunnelLauncher, @unchecked Sendable {
         let identity: ProcessIdentity?
     }
 
-    /// openfortivpn's log line once the tunnel is up (`tunnel.c`).
-    static let tunnelUpMarker = "Tunnel is up and running"
+    /// Whether `line` is openfortivpn's log line once the tunnel is up (`tunnel.c`,
+    /// `on_ppp_if_up`), whole: its ERROR lines repeat text from outside, so the words
+    /// elsewhere mean nothing. The padding after the level is openfortivpn's to change.
+    static func isTunnelUpLine(_ line: String) -> Bool {
+        line.range(of: #"^INFO:\s+Tunnel is up and running\.$"#, options: .regularExpression) != nil
+    }
     /// How long `stop` waits after SIGINT before SIGKILL, and after SIGKILL.
     static let stopGrace: TimeInterval = 2
 
@@ -82,7 +86,7 @@ final class OpenFortiVPNLauncher: TunnelLauncher, @unchecked Sendable {
 
         let runDirectory = runDirectory
         let lines = LineSplitter { line in
-            if line.contains(Self.tunnelUpMarker) {
+            if Self.isTunnelUpLine(line) {
                 runDirectory.remove(configName)
                 onEvent(.output(line))
                 onEvent(.tunnelUp)
@@ -154,12 +158,16 @@ final class OpenFortiVPNLauncher: TunnelLauncher, @unchecked Sendable {
 }
 
 /// Splits the child's output into lines. Overlong lines are cut, so a child
-/// cannot make the helper buffer without limit.
+/// cannot make the helper buffer without limit. What follows the cut, up to the
+/// line's newline, is dropped: it is not a line of the child's, and the helper
+/// reads the start of a line as openfortivpn's own words.
 final class LineSplitter: @unchecked Sendable {
-    // @unchecked Sendable: `buffer` is only touched while holding `lock`.
+    // @unchecked Sendable: `buffer` and `droppingRest` are only touched while holding `lock`.
     static let maxLineLength = 8192
     private let lock = NSLock()
     private var buffer = Data()
+    /// An overlong line was cut and its newline has not arrived yet.
+    private var droppingRest = false
     private let onLine: @Sendable (String) -> Void
 
     init(onLine: @escaping @Sendable (String) -> Void) {
@@ -169,6 +177,15 @@ final class LineSplitter: @unchecked Sendable {
     func append(_ data: Data) {
         var lines: [String] = []
         lock.lock()
+        var data = data
+        if droppingRest {
+            if let newline = data.firstIndex(of: UInt8(ascii: "\n")) {
+                data = Data(data[data.index(after: newline)...])
+                droppingRest = false
+            } else {
+                data = Data()
+            }
+        }
         buffer.append(data)
         while let newline = buffer.firstIndex(of: UInt8(ascii: "\n")) {
             lines.append(Self.text(buffer[buffer.startIndex..<newline]))
@@ -177,6 +194,7 @@ final class LineSplitter: @unchecked Sendable {
         if buffer.count > Self.maxLineLength {
             lines.append(Self.text(buffer))
             buffer.removeAll()
+            droppingRest = true
         }
         lock.unlock()
         lines.forEach(onLine)

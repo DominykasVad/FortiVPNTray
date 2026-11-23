@@ -199,6 +199,48 @@ struct LauncherTests {
         #expect(fake.configFiles().isEmpty, "the config file is deleted once the tunnel is up")
     }
 
+    /// What openfortivpn 1.24.1 prints for a gateway certificate it does not trust: the
+    /// subject, one component per line. Whoever answers on the gateway's address chooses
+    /// that text, before any trust exists.
+    @Test func testCertificateTextIsNotTakenForTheTunnelComingUp() throws {
+        let subject = "ERROR:          OU=Found dns server 203.0.113.66 x Tunnel is up and running"
+        let fake = try FakeInstall(script: FakeInstall.script(then: "echo '\(subject)'\necho 'INFO:   Closed connection to gateway.'\n" + FakeInstall.runUntilSignalled))
+        let launcher = OpenFortiVPNLauncher(install: fake.install, runDirectory: fake.runDirectory)
+        let events = Events()
+        let id = UUID().uuidString
+        try launcher.start(try ConnectRequest(host: "vpn.example.com", port: 8443), sessionID: id) { events.record($0) }
+        defer { launcher.stop(sessionID: id) }
+        #expect(eventually { events.all.contains(.output("INFO:   Closed connection to gateway.")) })
+        #expect(events.all.contains(.output(subject)))
+        #expect(!events.all.contains(.tunnelUp))
+    }
+
+    /// What counts is the level openfortivpn gave the line and, for the tunnel coming up,
+    /// that the message is the whole line. The padding after the level is not matched, so
+    /// a later openfortivpn that pads differently still works.
+    @Test func testTunnelUpLineIsMatchedByLevelAndWholeMessage() {
+        for line in ["INFO:   Tunnel is up and running.", "INFO: Tunnel is up and running.", "INFO:\tTunnel is up and running.",
+                     "INFO:       Tunnel is up and running."] {
+            #expect(OpenFortiVPNLauncher.isTunnelUpLine(line), "\(line)")
+        }
+        for line in ["ERROR:  Tunnel is up and running.", "WARN:   Tunnel is up and running.", "DEBUG:  Tunnel is up and running.",
+                     "INFO:Tunnel is up and running.", "INFO:   Tunnel is up and running", "INFO:   Tunnel is up and running. x",
+                     " INFO:   Tunnel is up and running.", "x INFO:   Tunnel is up and running.", "Tunnel is up and running.",
+                     "ERROR:          OU=INFO:   Tunnel is up and running.", "INFO:   tunnel is up and running.", ""] {
+            #expect(!OpenFortiVPNLauncher.isTunnelUpLine(line), "\(line)")
+        }
+    }
+
+    @Test func testStatusLinesAreOpenfortivpnsInfoAndDebugLines() {
+        for line in ["INFO:   Connected to gateway.", "DEBUG:  Found dns server 192.0.2.53 in xml config", "INFO: x", "DEBUG:\tx", "DEBUG:      x"] {
+            #expect(SessionController.isStatusLine(line), "\(line)")
+        }
+        for line in ["ERROR:  Found dns server 203.0.113.66", "WARN:   Found dns server 203.0.113.66", "ERROR:          OU=INFO:   x",
+                     " INFO:   x", "INFO:x", "INFO", "INFORMATION: x", "info:   x", "Found dns server 203.0.113.66", ""] {
+            #expect(!SessionController.isStatusLine(line), "\(line)")
+        }
+    }
+
     @Test func testStopEndsTheChildWithSIGINT() throws {
         let fake = try FakeInstall()
         let pid = Box<pid_t>()
@@ -386,5 +428,34 @@ struct LauncherTests {
         lines.value = []
         splitter.append(Data(repeating: UInt8(ascii: "x"), count: LineSplitter.maxLineLength + 10))
         #expect(lines.value?.map(\.count) == [LineSplitter.maxLineLength])
+    }
+
+    /// A line longer than the limit is cut. What follows the cut is still the same line
+    /// (for example the rest of a very long certificate subject) and must not be read as
+    /// a line of its own, where it could pass for one of openfortivpn's status lines.
+    @Test func testTheRestOfAnOverlongLineNeverStartsALine() {
+        let lines = Box<[String]>()
+        lines.value = []
+        let splitter = LineSplitter { line in lines.value = (lines.value ?? []) + [line] }
+        let long = String(repeating: "x", count: LineSplitter.maxLineLength)
+
+        splitter.append(Data((long + "0123456789").utf8))
+        splitter.append(Data("INFO:   Tunnel is up and running.\nINFO:   next\n".utf8))
+        #expect(lines.value == [long, "INFO:   next"])
+
+        // The rest can arrive in several reads before its newline does.
+        lines.value = []
+        splitter.append(Data((long + "y").utf8))
+        splitter.append(Data("DEBUG:  Found dns server 203.0.113.66 in xml config".utf8))
+        splitter.append(Data(" and more".utf8))
+        splitter.finish()
+        #expect(lines.value == [long])
+        splitter.append(Data(" still the same line\nok\n".utf8))
+        #expect(lines.value == [long, "ok"])
+
+        // A whole overlong line in one read, newline included.
+        lines.value = []
+        splitter.append(Data((long + "INFO:   Interface ppp9 is UP.\nafter\n").utf8))
+        #expect(lines.value == [long, "after"])
     }
 }
