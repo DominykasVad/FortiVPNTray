@@ -155,17 +155,25 @@ public struct HelperLaunchArguments: Equatable, Sendable {
 
 /// The code-signing requirement the helper sets on every incoming connection in signed mode.
 public enum CallerRequirement {
-    /// `identifier "<id>" and certificate leaf = H"<sha1>"`.
-    /// Returns nil unless the identifier is a plain reverse-DNS name and the hash is 40 hex digits:
-    /// both are placed inside a requirement string, so neither may contain a quote or anything else.
-    public static func string(identifier: String, leafSHA1: String) -> String? {
+    /// The lowest `CFBundleVersion` of the app the helper still accepts. Identifier and
+    /// certificate alone accept everything ever signed with them, also builds that take
+    /// `DYLD_INSERT_LIBRARIES`; the build number is sealed by the signature. Raise it
+    /// together with `CFBundleVersion` in `native/Resources/Info.plist` to retire builds.
+    public static let minimumClientBuild = 6
+
+    /// `identifier "<id>" and certificate leaf = H"<sha1>" and info[CFBundleVersion] >= "<build>"`.
+    /// Returns nil unless the identifier is a plain reverse-DNS name, the hash is 40 hex digits
+    /// and the build is positive: all three are placed inside a requirement string, so none may
+    /// contain a quote or anything else.
+    public static func string(identifier: String, leafSHA1: String, minimumBuild: Int = minimumClientBuild) -> String? {
         let identifierOK = !identifier.isEmpty && identifier.utf8.allSatisfy {
             (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0) || $0 == 45 || $0 == 46
         }
         let hashOK = leafSHA1.utf8.count == 40 && leafSHA1.utf8.allSatisfy {
             (48...57).contains($0) || (65...70).contains($0) || (97...102).contains($0)
         }
-        guard identifierOK, hashOK else { return nil }
-        return "identifier \"\(identifier)\" and certificate leaf = H\"\(leafSHA1.uppercased())\""
+        guard identifierOK, hashOK, minimumBuild > 0 else { return nil }
+        // The comparison is numeric, so build 10 is above 6.
+        return "identifier \"\(identifier)\" and certificate leaf = H\"\(leafSHA1.uppercased())\" and info[CFBundleVersion] >= \"\(minimumBuild)\""
     }
 }

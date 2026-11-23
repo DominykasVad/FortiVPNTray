@@ -104,6 +104,22 @@ codesign -d -r- native/dist/FortiVPNTray.app
 
 An ad-hoc build prints a warning instead and carries no certificate.
 
+## Old builds
+
+A signature never expires: every program ever signed with the identity under the
+app's identifier keeps satisfying "this identifier, this certificate". Builds 5
+and earlier were signed without the hardened runtime, so each of them is a
+program anyone running as you can load code into. The helper therefore also
+requires a minimum build number of its callers
+(`CallerRequirement.minimumClientBuild`, compared with the `CFBundleVersion`
+that the signature seals). After updating the app, repair the helper once so
+that the installed helper applies the current minimum, then delete old signed
+builds: earlier `.app` copies and zips, and `spikes/helper-probe/dist/` from
+before the probe was hardened.
+
+To retire builds again later, raise `CFBundleVersion` in
+`native/Resources/Info.plist` and `minimumClientBuild` together.
+
 ## Rules
 
 - Never choose "Always Allow" for `codesign`.
