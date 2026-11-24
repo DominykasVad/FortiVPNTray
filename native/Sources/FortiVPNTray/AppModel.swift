@@ -68,7 +68,15 @@ final class AppModel: ObservableObject {
             self?.appendLog("The login window was closed; disconnecting.")
             self?.disconnect()
         }
-        if !smokeTest { refreshHelper() }
+        if !smokeTest {
+            refreshHelper()
+            // A tunnel left up by an earlier run of the app that was killed or crashed.
+            Task {
+                if (try? await engine.endLeftoverSession()) == true {
+                    appendLog("A VPN session left over from an earlier run of the app was disconnected.")
+                }
+            }
+        }
     }
     func save(_ profile: VPNProfile) throws {
         guard maySave(profile) else { throw VPNError("Cannot save this profile while connected or configuration storage is unavailable.") }

@@ -52,6 +52,7 @@ public actor VPNEngine {
         }
         let profile = try profile.validated()
         try Task.checkCancellation()
+        try endLeftoverSession()
         let request: ConnectRequest
         do {
             request = try ConnectRequest(host: profile.host, port: profile.port, realm: profile.realm, trustedCerts: profile.trustedCerts,
@@ -61,6 +62,16 @@ public actor VPNEngine {
         }
         let id = try helper.connect(request)
         session = Session(id: id, host: profile.host, port: profile.port)
+    }
+
+    /// Ends a session the helper still runs but this app did not start: one left behind
+    /// by an app that was killed or crashed while connected. Returns whether there was
+    /// one. Does nothing while this app has a session of its own.
+    @discardableResult
+    public func endLeftoverSession() throws -> Bool {
+        guard session == nil, try helper.status().state != .idle else { return false }
+        try helper.disconnect()
+        return true
     }
 
     public func poll() throws -> PollResult {
