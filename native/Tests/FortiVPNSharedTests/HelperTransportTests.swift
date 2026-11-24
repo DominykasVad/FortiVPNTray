@@ -92,7 +92,8 @@ struct HelperTransportTests {
 
     @Test func testRequirementString() {
         #expect(CallerRequirement.string(identifier: "eu.dvad.fortivpntray", leafSHA1: hash)
-                == "identifier \"eu.dvad.fortivpntray\" and certificate leaf = H\"0123456789ABCDEF0123456789ABCDEF01234567\"")
+                == "identifier \"eu.dvad.fortivpntray\" and certificate leaf = H\"0123456789ABCDEF0123456789ABCDEF01234567\" and info[CFBundleVersion] >= \"6\"")
+        #expect(CallerRequirement.string(identifier: "eu.dvad.fortivpntray", leafSHA1: hash, minimumBuild: 12)?.hasSuffix(" and info[CFBundleVersion] >= \"12\"") == true)
         #expect(CallerRequirement.string(identifier: "eu.dvad.fortivpntray", leafSHA1: hash.lowercased())
                 == CallerRequirement.string(identifier: "eu.dvad.fortivpntray", leafSHA1: hash))
     }
@@ -103,6 +104,9 @@ struct HelperTransportTests {
         }
         for value in ["", String(hash.dropLast()), hash + "0", String(hash.dropLast()) + "\"", String(hash.dropLast()) + "Z"] {
             #expect(CallerRequirement.string(identifier: "eu.dvad.fortivpntray", leafSHA1: value) == nil, "\(value)")
+        }
+        for build in [0, -1, Int.min] {
+            #expect(CallerRequirement.string(identifier: "eu.dvad.fortivpntray", leafSHA1: hash, minimumBuild: build) == nil, "\(build)")
         }
     }
 

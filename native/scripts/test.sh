@@ -15,4 +15,11 @@ if [[ -d "$framework_dir/Testing.framework" ]]; then
     args+=(-Xswiftc -Xfrontend -Xswiftc -disable-cross-import-overlays)
   fi
 fi
+# Command Line Tools keep the swift-testing macro plugin in a subdirectory that SwiftPM
+# does not always hand to the compiler; the build then fails with "plugin for module
+# 'TestingMacros' not found". Xcode toolchains have no such directory here.
+plugin_dir="$developer_dir/usr/lib/swift/host/plugins/testing"
+if [[ -d "$plugin_dir" ]]; then
+  args+=(-Xswiftc -plugin-path -Xswiftc "$plugin_dir")
+fi
 swift "${args[@]}"

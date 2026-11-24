@@ -9,7 +9,7 @@ identity="${FVT_SIGN_IDENTITY:--}"
 keychain="${FVT_SIGN_KEYCHAIN:-}"
 helper_path="$app_path/Contents/Resources/FortiVPNHelper"
 
-sign_args=(--force --sign "$identity")
+sign_args=(--force --options runtime --sign "$identity")
 if [[ "$identity" == "-" ]]; then
   if [[ -n "$keychain" ]]; then
     echo "error: FVT_SIGN_KEYCHAIN is set but FVT_SIGN_IDENTITY is not." >&2
@@ -35,6 +35,8 @@ for target in "${targets[@]}"; do
   codesign "${sign_args[@]}" "$target"
 done
 codesign --verify --deep --strict "$app_path"
+# Fails the build if the app or the helper ended up without the hardened runtime.
+"$(dirname "$0")/check-signature.sh" "$app_path"
 
 [[ "$identity" == "-" ]] && exit 0
 

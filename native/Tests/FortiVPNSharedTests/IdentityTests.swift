@@ -26,6 +26,15 @@ struct IdentityTests {
         #expect(plist["CFBundleIdentifier"] as? String == AppIdentity.identifier)
     }
 
+    /// The helper refuses an app below `CallerRequirement.minimumClientBuild`; the app built
+    /// from this tree must not be one of them.
+    @Test func testInfoPlistBuildIsOneTheHelperAccepts() throws {
+        let data = try Data(contentsOf: Self.repository.appendingPathComponent("native/Resources/Info.plist"))
+        let plist = try #require(try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        let build = try #require((plist["CFBundleVersion"] as? String).flatMap(Int.init))
+        #expect(build >= CallerRequirement.minimumClientBuild)
+    }
+
     @Test func testNoUpstreamIdentifiersRemain() throws {
         let upstream = ["com.itstone.fortivpntray", "/var/run/fortivpntray-helper.sock", "/var/log/fortivpntray-helper.log",
                         "State:/Network/Service/FortiVPNTray/DNS", "/tmp/fortivpntray-"]

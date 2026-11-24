@@ -56,9 +56,22 @@ native/scripts/build.sh
   it without `FVT_SIGN_IDENTITY` is an error.
 
 `build.sh` calls `native/scripts/sign.sh`, which signs the bundled helper and
-then the app, runs `codesign --verify --deep --strict`, and stops the build if
-any step fails. A named identity that cannot be used never falls back to
-ad-hoc.
+then the app, both with the hardened runtime (`--options runtime`), runs
+`codesign --verify --deep --strict`, and stops the build if any step fails. A
+named identity that cannot be used never falls back to ad-hoc.
+
+The hardened runtime is what makes the signed caller check mean something:
+without it, anyone can start the app with `DYLD_INSERT_LIBRARIES` and talk to
+the helper from inside it. `sign.sh` therefore ends with
+`native/scripts/check-signature.sh`, which fails the build unless the app and
+the bundled helper both carry the hardened runtime, have no entitlements, and
+the bundle verifies. Run it by hand on any build before installing its helper:
+
+```bash
+native/scripts/check-signature.sh native/dist/FortiVPNTray.app
+codesign -dvv native/dist/FortiVPNTray.app 2>&1 | grep -E 'flags|Authority'
+# CodeDirectory … flags=0x10000(runtime) …
+```
 
 If macOS asks whether `codesign` may use the key, choose **Allow**.
 
@@ -90,6 +103,22 @@ codesign -d -r- native/dist/FortiVPNTray.app
 ```
 
 An ad-hoc build prints a warning instead and carries no certificate.
+
+## Old builds
+
+A signature never expires: every program ever signed with the identity under the
+app's identifier keeps satisfying "this identifier, this certificate". Builds 5
+and earlier were signed without the hardened runtime, so each of them is a
+program anyone running as you can load code into. The helper therefore also
+requires a minimum build number of its callers
+(`CallerRequirement.minimumClientBuild`, compared with the `CFBundleVersion`
+that the signature seals). After updating the app, repair the helper once so
+that the installed helper applies the current minimum, then delete old signed
+builds: earlier `.app` copies and zips, and `spikes/helper-probe/dist/` from
+before the probe was hardened.
+
+To retire builds again later, raise `CFBundleVersion` in
+`native/Resources/Info.plist` and `minimumClientBuild` together.
 
 ## Rules
 
